@@ -1,18 +1,18 @@
+import { and, count, eq, gt, gte, ne, sql } from 'drizzle-orm';
+import type { AchievementDef } from '$lib/data/achievements';
+import { ACHIEVEMENTS, ACHIEVEMENTS_MAP } from '$lib/data/achievements';
 import { db } from './db';
 import {
+	coin,
+	comment,
+	predictionBet,
+	predictionQuestion,
+	transaction,
 	user,
 	userAchievement,
-	transaction,
-	coin,
-	userPortfolio,
-	comment,
-	predictionQuestion,
-	predictionBet,
-	userInventory
+	userInventory,
+	userPortfolio
 } from './db/schema';
-import { eq, and, sql, count, gte, gt, ne } from 'drizzle-orm';
-import { ACHIEVEMENTS_MAP, ACHIEVEMENTS } from '$lib/data/achievements';
-import type { AchievementDef } from '$lib/data/achievements';
 import { createNotification } from './notification';
 
 export interface AchievementContext {
@@ -282,7 +282,11 @@ async function checkAchievement(
 		case 'create_coin':
 		case 'create_5':
 		case 'create_25': {
-			const thresholds: Record<string, number> = { create_coin: 1, create_5: 5, create_25: 25 };
+			const thresholds: Record<string, number> = {
+				create_coin: 1,
+				create_5: 5,
+				create_25: 25
+			};
 			const [result] = await db
 				.select({ cnt: count() })
 				.from(coin)
@@ -628,7 +632,9 @@ async function awardAchievement(userId: number, achievementId: string): Promise<
 		const result = await db
 			.insert(userAchievement)
 			.values({ userId, achievementId, claimed: false })
-			.onConflictDoNothing({ target: [userAchievement.userId, userAchievement.achievementId] })
+			.onConflictDoNothing({
+				target: [userAchievement.userId, userAchievement.achievementId]
+			})
 			.returning({ id: userAchievement.id });
 
 		if (result.length === 0) return false;
@@ -726,7 +732,11 @@ export async function claimAllAchievements(
 				})
 				.where(eq(user.id, userId));
 
-			return { cashReward: totalCash, gemReward: totalGems, count: unclaimed.length };
+			return {
+				cashReward: totalCash,
+				gemReward: totalGems,
+				count: unclaimed.length
+			};
 		});
 	} catch (e) {
 		console.error(`Failed to claim all achievements for user ${userId}:`, e);
@@ -771,6 +781,9 @@ export async function getAchievementProgress(userId: number): Promise<Record<str
 			progress['prestige_5'] = userData.prestigeLevel ?? 0;
 			progress['prestige_7'] = userData.prestigeLevel ?? 0;
 			progress['open_50_crates'] = userData.cratesOpened ?? 0;
+			progress['open_100_crates'] = userData.cratesOpened ?? 0;
+			progress['open_150_crates'] = userData.cratesOpened ?? 0;
+			progress['open_200_crates'] = userData.cratesOpened ?? 0;
 		}
 
 		const [tradeCount] = await db
@@ -828,7 +841,9 @@ export async function getAchievementProgress(userId: number): Promise<Record<str
 		progress['comments_50'] = Number(commentCount?.cnt ?? 0);
 
 		const [transferUsers] = await db
-			.select({ cnt: sql<string>`COUNT(DISTINCT ${transaction.recipientUserId})` })
+			.select({
+				cnt: sql<string>`COUNT(DISTINCT ${transaction.recipientUserId})`
+			})
 			.from(transaction)
 			.where(and(eq(transaction.userId, userId), eq(transaction.type, 'TRANSFER_OUT')));
 		progress['transfers_10_users'] = Number(transferUsers?.cnt ?? 0);
@@ -854,6 +869,9 @@ export async function getAchievementProgress(userId: number): Promise<Record<str
 		progress['own_5_colors'] = Number(colorCount?.cnt ?? 0);
 		progress['own_10_colors'] = Number(colorCount?.cnt ?? 0);
 		progress['own_15_colors'] = Number(colorCount?.cnt ?? 0);
+		progress['own_20_colors'] = Number(colorCount?.cnt ?? 0);
+		progress['own_30_colors'] = Number(colorCount?.cnt ?? 0);
+		progress['own_40_colors'] = Number(colorCount?.cnt ?? 0);
 
 		const dedicationResult = await db.execute(sql`
 			WITH daily_buys AS (

@@ -263,14 +263,14 @@
 				<div class="flex gap-2 pt-2">
 					<Button
 						onclick={() => updateBalance('set')}
-						disabled={!balanceUsername.trim() || !balanceAmount || balanceLoading}
+						disabled={!balanceUsername.trim() || typeof balanceAmount === 'undefined' || balanceLoading}
 						class="flex-1 bg-blue-500 text-white hover:bg-blue-600"
 					>
 						Set Exact
 					</Button>
 					<Button
 						onclick={() => updateBalance('add')}
-						disabled={!balanceUsername.trim() || !balanceAmount || balanceLoading}
+						disabled={!balanceUsername.trim() || typeof balanceAmount === 'undefined' || balanceLoading}
 						class="flex-1 bg-green-500 text-white hover:bg-green-600"
 					>
 						+ Add
@@ -278,7 +278,7 @@
 					<Button
 						variant="destructive"
 						onclick={() => updateBalance('subtract')}
-						disabled={!balanceUsername.trim() || !balanceAmount || balanceLoading}
+						disabled={!balanceUsername.trim() || typeof balanceAmount === 'undefined' || balanceLoading}
 						class="flex-1"
 					>
 						- Subtract

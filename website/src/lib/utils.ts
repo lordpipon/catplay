@@ -388,7 +388,7 @@ export const PRESTIGE_NAMES = {
 	17: 'Prestige XVII',
 	18: 'Prestige XVIII',
 	19: 'Prestige XIX',
-	20: 'Prestige XX',
+	20: 'Prestige XX'
 } as const;
 
 export const PRESTIGE_COLORS = {

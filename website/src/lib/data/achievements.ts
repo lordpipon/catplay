@@ -747,7 +747,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 		category: 'shop',
 		targetValue: 40
 	},
-	
+
 	{
 		id: 'open_50_crates',
 		name: 'Crate Addict',

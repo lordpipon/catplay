@@ -153,15 +153,13 @@ export async function POST({ params, request }) {
 					.set({ amount: newStakeAmount.toString() })
 					.where(and(eq(userStake.userId, userId), eq(userStake.coinId, coinId)));
 			} else {
-				await tx
-					.insert(userStake)
-					.values({
-						userId,
-						coinId,
-						amount: amount.toString(),
-						rewardDebt: '0',
-						claimableRewards: '0'
-					});
+				await tx.insert(userStake).values({
+					userId,
+					coinId,
+					amount: amount.toString(),
+					rewardDebt: '0',
+					claimableRewards: '0'
+				});
 			}
 
 			await tx
@@ -174,17 +172,15 @@ export async function POST({ params, request }) {
 				.set({ rewardDebt: (newStakeAmount * Number(updatedPool.rewardPerShare)).toString() })
 				.where(and(eq(userStake.userId, userId), eq(userStake.coinId, coinId)));
 
-			await tx
-				.insert(transaction)
-				.values({
-					userId,
-					coinId,
-					type: 'STAKE',
-					quantity: amount.toString(),
-					pricePerCoin: '0',
-					totalBaseCurrencyAmount: '0',
-					note: 'Staked to compounding pool'
-				});
+			await tx.insert(transaction).values({
+				userId,
+				coinId,
+				type: 'STAKE',
+				quantity: amount.toString(),
+				pricePerCoin: '0',
+				totalBaseCurrencyAmount: '0',
+				note: 'Staked to compounding pool'
+			});
 			return json({ success: true, type: 'STAKE', amount });
 		}
 
@@ -232,17 +228,15 @@ export async function POST({ params, request }) {
 					.where(and(eq(userStake.userId, userId), eq(userStake.coinId, coinId)));
 			}
 
-			await tx
-				.insert(transaction)
-				.values({
-					userId,
-					coinId,
-					type: 'UNSTAKE',
-					quantity: amount.toString(),
-					pricePerCoin: '0',
-					totalBaseCurrencyAmount: '0',
-					note: 'Withdrew staking deposit'
-				});
+			await tx.insert(transaction).values({
+				userId,
+				coinId,
+				type: 'UNSTAKE',
+				quantity: amount.toString(),
+				pricePerCoin: '0',
+				totalBaseCurrencyAmount: '0',
+				note: 'Withdrew staking deposit'
+			});
 			return json({ success: true, type: 'UNSTAKE', amount });
 		}
 
@@ -274,17 +268,15 @@ export async function POST({ params, request }) {
 					.values({ userId, coinId, quantity: currentClaimable.toString() });
 			}
 
-			await tx
-				.insert(transaction)
-				.values({
-					userId,
-					coinId,
-					type: 'CLAIM_REWARD',
-					quantity: currentClaimable.toString(),
-					pricePerCoin: '0',
-					totalBaseCurrencyAmount: '0',
-					note: 'Claimed epoch yield rewards'
-				});
+			await tx.insert(transaction).values({
+				userId,
+				coinId,
+				type: 'CLAIM_REWARD',
+				quantity: currentClaimable.toString(),
+				pricePerCoin: '0',
+				totalBaseCurrencyAmount: '0',
+				note: 'Claimed epoch yield rewards'
+			});
 			return json({ success: true, type: 'CLAIM', rewardsClaimed: currentClaimable });
 		}
 	});
