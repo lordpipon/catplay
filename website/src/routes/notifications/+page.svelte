@@ -96,7 +96,7 @@
 </script>
 
 <SEO
-	title="Notifications - Catplay"
+	title="Notifications"
 	description="View your notifications and updates from Catplay."
 />
 

@@ -115,7 +115,7 @@
 	}
 </script>
 
-<SEO title="Battlepass | Catplay" description="Complete tasks and earn rewards in the Catplay Battlepass." />
+<SEO title="Battlepass" description="Complete tasks and earn rewards in the Catplay Battlepass." />
 
 <div class="mx-auto max-w-4xl space-y-6 p-4">
 	<!-- Header -->

@@ -51,7 +51,7 @@
 	}
 </script>
 
-<SEO title="VIP Status | Catplay" description="Unlock premium features with VIP status." />
+<SEO title="VIP" description="Unlock premium features with VIP status." />
 
 <div class="mx-auto max-w-xl space-y-6 p-4">
 	<div class="flex items-center gap-3">

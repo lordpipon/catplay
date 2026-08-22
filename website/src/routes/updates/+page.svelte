@@ -39,7 +39,7 @@
 	});
 </script>
 
-<SEO title="Updates | Catplay" description="Latest updates, fixes and events on Catplay." />
+<SEO title="Updates" description="Latest updates, fixes and events on Catplay." />
 
 <div class="mx-auto max-w-2xl space-y-6 p-4">
 	<div class="flex items-center gap-3">

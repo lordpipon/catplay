@@ -138,7 +138,7 @@
 </script>
 
 <SEO
-	title="Achievements - Catplay"
+	title="Achievements"
 	description="Track your progress and unlock achievements in the Catplay crypto trading simulator. Complete challenges to earn rewards."
 	keywords="crypto game achievements, trading simulator challenges, virtual trading rewards"
 />
