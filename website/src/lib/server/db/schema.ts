@@ -446,6 +446,7 @@ export const apikey = pgTable(
 		userId: integer('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
+		referenceId: text('reference_id'),
 		refillInterval: integer('refill_interval'),
 		refillAmount: integer('refill_amount'),
 		lastRefillAt: timestamp('last_refill_at'),
