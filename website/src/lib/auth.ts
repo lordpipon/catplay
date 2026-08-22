@@ -41,6 +41,24 @@ export const auth = betterAuth({
 			}
 		})
 	],
+	emailAndPassword: {
+		enabled: true,
+		minPasswordLength: 8
+	},
+	databaseHooks: {
+		user: {
+			create: {
+				// Email signups don't go through the Google profile mapping,
+				// so generate a username (DB column is NOT NULL + unique)
+				before: async (userData) => {
+					if (!('username' in userData) || !userData.username) {
+						return { data: { ...userData, username: generateUsername() } };
+					}
+					return { data: userData };
+				}
+			}
+		}
+	},
 	database: drizzleAdapter(db, {
 		provider: 'pg',
 		schema: schema
@@ -84,7 +102,7 @@ export const auth = betterAuth({
 	},
 	user: {
 		additionalFields: {
-			username: { type: 'string', required: true, input: false },
+			username: { type: 'string', required: false, input: false },
 			isBanned: { type: 'boolean', required: false, input: false },
 			banReason: { type: 'string', required: false, input: false },
 			baseCurrencyBalance: { type: 'string', required: false, input: false },
