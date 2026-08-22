@@ -386,7 +386,7 @@
 								<DropdownMenu.Item onclick={handlePrivacyClick}><HugeiconsIcon icon={ShieldUserIcon} />Privacy Policy</DropdownMenu.Item>
 							</DropdownMenu.Group>
 							<DropdownMenu.Separator />
-							<DropdownMenu.Item onclick={() => { signOut().then(() => { USER_DATA.set(null); window.location.reload(); }); }}>
+							<DropdownMenu.Item onclick={() => { USER_DATA.set(null); signOut().finally(() => { window.location.reload(); }); }}>
 								<HugeiconsIcon icon={Logout01Icon} />Log out
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>

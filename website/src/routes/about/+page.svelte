@@ -36,7 +36,7 @@
 <div class="container mx-auto space-y-8 px-4 py-8">
 	<div class="space-y-4 text-center">
 		<div class="mb-4 flex items-center justify-center gap-2">
-			<img src="/Catplay.svg" class="h-12 w-12" alt="Catplay" />
+			<img src="/catplay.png" class="h-12 w-12" alt="Catplay" />
 			<h1 class="text-4xl font-bold">Catplay</h1>
 		</div>
 		<p class="text-muted-foreground mx-auto max-w-2xl text-lg">

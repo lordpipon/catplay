@@ -210,17 +210,24 @@
 			if (res.ok) {
 				const result = await res.json();
 				await invalidateAll();
-				if ($USER_DATA && result.imageKey) {
+				if ($USER_DATA) {
 					USER_DATA.update((u) =>
-						u ? { ...u, image: result.imageKey, avatarUrl: result.imageKey } : u
+						u
+							? {
+									...u,
+									image: result.imageKey ?? u.image,
+									avatarUrl: result.imageKey ?? u.avatarUrl,
+									name: result.name ?? u.name,
+									bio: result.bio ?? u.bio,
+									username: result.username ?? u.username
+								}
+							: u
 					);
 				}
 				previewUrl = null;
 				avatarFile = undefined;
 				haptic.trigger('success');
-				toast.success('Settings updated successfully!', {
-					action: { label: 'Refresh', onClick: () => window.location.reload() }
-				});
+				toast.success('Settings updated successfully!');
 			} else {
 				const result = await res.json();
 				toast.error('Failed to update settings', {

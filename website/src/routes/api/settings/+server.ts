@@ -127,5 +127,12 @@ export async function POST({ request }) {
 		checkAndAwardAchievements(Number(session.user.id), ['social']);
 	}
 
-	return json({ success: true, imageKey: updates.image ?? null, ts: Date.now() });
+	return json({
+		success: true,
+		imageKey: updates.image ?? null,
+		ts: Date.now(),
+		name: name ?? null,
+		bio: bio ?? null,
+		username: username ?? null
+	});
 }
