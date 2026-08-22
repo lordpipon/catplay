@@ -18,8 +18,7 @@
 		TradeDownIcon,
 		MoneyBag02Icon,
 		Coins01Icon,
-		Analytics01Icon,
-		Delete01Icon
+		Analytics01Icon
 	} from '@hugeicons/core-free-icons';
 	import {
 		createChart,
@@ -519,30 +518,9 @@
 		return `${mins}:${secs.toString().padStart(2, '0')}`;
 	}
 
-	let isCreator = $derived(coin && $USER_DATA && coin.creatorId === Number($USER_DATA.id));
-	let deleteDialogOpen = $state(false);
-	let deletingCoin = $state(false);
+		let isCreator = $derived(coin && $USER_DATA && coin.creatorId === Number($USER_DATA.id));
 
-	async function deleteCoin() {
-		if (!coin || deletingCoin) return;
-		deletingCoin = true;
-		try {
-			const res = await fetch('/api/coins/delete', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ symbol: coin.symbol })
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to delete coin');
-			toast.success(data.message || 'Coin deleted');
-			deleteDialogOpen = false;
-			goto('/market');
-		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to delete coin');
-		} finally {
-			deletingCoin = false;
-		}
-	}
+
 	let isTradingLocked = $derived(coin?.isLocked && countdown !== null && countdown > 0);
 	let canTrade = $derived(!isTradingLocked || isCreator);
 </script>
@@ -669,43 +647,6 @@
 						</HoverCard.Content>
 					</HoverCard.Root>
 				</div>
-			{/if}
-
-			<!-- Creator: Delete coin -->
-			{#if isCreator}
-				<Dialog.Root bind:open={deleteDialogOpen}>
-					<Dialog.Trigger
-						class="mt-2 inline-flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
-					>
-						<HugeiconsIcon icon={Delete01Icon} class="h-3.5 w-3.5" />
-						Delete Coin
-					</Dialog.Trigger>
-					<Dialog.Content class="sm:max-w-md">
-						<Dialog.Header>
-							<Dialog.Title>Delete {coin?.name} (*{coin?.symbol})?</Dialog.Title>
-							<Dialog.Description>
-								This permanently deletes the coin, its price history, all comments, and every
-								holder's position. This cannot be undone.
-							</Dialog.Description>
-						</Dialog.Header>
-						<div class="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm">
-							<p class="font-medium text-red-500">Warning for holders</p>
-							<p class="text-muted-foreground mt-1">
-								Anyone holding *{coin?.symbol} will lose their entire position with no refund.
-							</p>
-						</div>
-						<p class="text-muted-foreground text-sm">
-							The remaining pool liquidity ($
-							{Number(coin?.poolBaseCurrencyAmount ?? 0).toFixed(2)}) will be returned to you.
-						</p>
-						<Dialog.Footer>
-							<Button variant="outline" onclick={() => (deleteDialogOpen = false)}>Cancel</Button>
-							<Button variant="destructive" onclick={deleteCoin} disabled={deletingCoin}>
-								{deletingCoin ? 'Deleting...' : 'Yes, delete permanently'}
-							</Button>
-						</Dialog.Footer>
-					</Dialog.Content>
-				</Dialog.Root>
 			{/if}
 		</header>
 

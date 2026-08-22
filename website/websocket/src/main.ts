@@ -29,7 +29,7 @@ const pingIntervals = new WeakMap<ServerWebSocket<WebSocketData>, NodeJS.Timeout
 redis.on('error', (err) => console.error('Redis Client Error', err));
 
 redis.on('connect', () => {
-	redis.psubscribe('comments:*', 'prices:*', 'notifications:*', (err, count) => {
+	redis.psubscribe('comments:*', 'prices:*', 'notifications:*', 'chat:*', (err, count) => {
 		if (err) console.error('Failed to psubscribe to patterns', err);
 		else console.log(`Successfully psubscribed to patterns. Active psubscriptions: ${count}`);
 	});
@@ -70,6 +70,25 @@ redis.on('pmessage', (pattern, channel, msg) => {
 				for (const ws of sockets) {
 					if (ws.readyState === WebSocket.OPEN) {
 						ws.send(priceMessage);
+					}
+				}
+			}
+		} else if (channel.startsWith('chat:global')) {
+			// Global chat — broadcast to every connected user socket
+			for (const [, sockets] of userSockets.entries()) {
+				for (const ws of sockets) {
+					if (ws.readyState === WebSocket.OPEN) {
+						ws.send(msg);
+					}
+				}
+			}
+		} else if (channel.startsWith('chat:')) {
+			const userId = channel.substring('chat:'.length);
+			const sockets = userSockets.get(userId);
+			if (sockets) {
+				for (const ws of sockets) {
+					if (ws.readyState === WebSocket.OPEN) {
+						ws.send(msg);
 					}
 				}
 			}

@@ -18,6 +18,16 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ error: 'Invalid coin symbol' }, { status: 400 });
 		}
 
+		const [requester] = await db
+			.select({ flags: user.flags })
+			.from(user)
+			.where(eq(user.id, userId))
+			.limit(1);
+
+		if (!hasFlag(requester?.flags ?? 0n, 'IS_HEAD_ADMIN')) {
+			throw new Error('Only head admins can delete coins');
+		}
+
 		const result = await db.transaction(async (tx) => {
 			const [coinRow] = await tx
 				.select({
@@ -33,14 +43,11 @@ export const POST: RequestHandler = async ({ request }) => {
 				.limit(1);
 
 			if (!coinRow) throw new Error('Coin not found');
-			if (coinRow.creatorId !== userId) {
-				throw new Error('Only the creator of this coin can delete it');
-			}
 
 			const [userRow] = await tx
 				.select({ baseCurrencyBalance: user.baseCurrencyBalance })
 				.from(user)
-				.where(eq(user.id, userId))
+				.where(eq(user.id, coinRow.creatorId))
 				.for('update')
 				.limit(1);
 
@@ -53,7 +60,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			await tx
 				.update(user)
 				.set({ baseCurrencyBalance: newBalance.toFixed(8), updatedAt: new Date() })
-				.where(eq(user.id, userId));
+				.where(eq(user.id, coinRow.creatorId));
 
 			return {
 				name: coinRow.name,
@@ -65,11 +72,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		return json({
 			success: true,
-			message: `${result.name} (*${result.symbol}) deleted. $${result.poolRefund.toFixed(2)} of pool liquidity was returned to you.`,
+			message: `${result.name} (*${result.symbol}) deleted. $${result.poolRefund.toFixed(2)} of pool liquidity was returned to the creator.`,
 			newBalance: result.newBalance
 		});
 	} catch (e) {
-		if (e instanceof Error && (e.message === 'Coin not found' || e.message.startsWith('Only the creator'))) {
+		if (e instanceof Error && (e.message === 'Coin not found' || e.message.startsWith('Only head admins'))) {
 			return json({ error: e.message }, { status: e.message === 'Coin not found' ? 404 : 403 });
 		}
 		console.error('Coin delete error:', e);

@@ -41,6 +41,10 @@
 	let delistCoinSymbol = $state('');
 	let delistLoading = $state(false);
 
+	// Delete Coin State
+	let deleteCoinSymbol = $state('');
+	let deleteCoinLoading = $state(false);
+
 	// Remove Portfolio State
 	let removePortfolioUsername = $state('');
 	let removePortfolioSymbol = $state('');
@@ -163,6 +167,21 @@
 		} catch { toast.error('Server error'); } finally { delistLoading = false; }
 	}
 
+	async function deleteCoin() {
+		if (!deleteCoinSymbol.trim() || deleteCoinLoading) return;
+		deleteCoinLoading = true;
+		try {
+			const response = await fetch('/api/coins/delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ symbol: deleteCoinSymbol.trim() })
+			});
+			const data = await response.json();
+			if (response.ok) { toast.success(data.message || 'Coin deleted'); deleteCoinSymbol = ''; }
+			else toast.error(data.error || 'Failed to delete coin');
+		} catch { toast.error('Server error'); } finally { deleteCoinLoading = false; }
+	}
+
 	async function removePortfolio() {
 		if (!removePortfolioUsername.trim() || !removePortfolioSymbol.trim()) return;
 		removePortfolioLoading = true;
@@ -276,6 +295,21 @@
 						<div class="flex gap-2">
 							<Input bind:value={removePortfolioSymbol} placeholder="Coin symbol" />
 							<Button variant="destructive" onclick={removePortfolio} disabled={!removePortfolioUsername.trim() || !removePortfolioSymbol.trim() || removePortfolioLoading}>Remove</Button>
+						</div>
+					</div>
+					<div class="max-w-md space-y-2 rounded-md border border-red-500/30 bg-red-500/5 p-3">
+						<p class="text-sm font-medium text-red-500">Delete Coin (Permanent)</p>
+						<p class="text-muted-foreground text-xs">
+							Deletes the coin, its price history, comments and all holder positions. Remaining
+							pool liquidity is refunded to the creator. This cannot be undone.
+						</p>
+						<div class="flex gap-2">
+							<Input bind:value={deleteCoinSymbol} placeholder="Coin symbol (e.g. BTC)" />
+							<Button variant="destructive" onclick={() => {
+								if (confirm(`Permanently delete *${deleteCoinSymbol.trim().toUpperCase()}? This cannot be undone.`)) deleteCoin();
+							}} disabled={!deleteCoinSymbol.trim() || deleteCoinLoading}>
+								{deleteCoinLoading ? 'Deleting...' : 'Delete'}
+							</Button>
 						</div>
 					</div>
 				</Card.Content>

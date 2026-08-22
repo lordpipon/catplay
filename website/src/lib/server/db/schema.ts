@@ -859,3 +859,77 @@ export const directMessage = pgTable(
 		createdAtIdx: index('dm_created_at_idx').on(table.createdAt)
 	})
 );
+
+// ---- Chat Channels (DMs, Global chat, Admin chats) ----
+
+export const chatChannel = pgTable(
+	'chat_channel',
+	{
+		id: serial('id').primaryKey(),
+		type: varchar('type', { length: 20 }).notNull().default('DIRECT'),
+		user1Id: integer('user1_id').references(() => user.id, { onDelete: 'cascade' }),
+		user2Id: integer('user2_id').references(() => user.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		typeIdx: index('chat_channel_type_idx').on(table.type),
+		usersIdx: index('chat_channel_users_idx').on(table.user1Id, table.user2Id)
+	})
+);
+
+export const chatMessage = pgTable(
+	'chat_message',
+	{
+		id: serial('id').primaryKey(),
+		channelId: integer('channel_id')
+			.notNull()
+			.references(() => chatChannel.id, { onDelete: 'cascade' }),
+		senderId: integer('sender_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+		content: varchar('content', { length: 2000 }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		channelCreatedIdx: index('chat_message_channel_created_idx').on(table.channelId, table.createdAt)
+	})
+);
+
+// ---- Coin Staking ----
+
+export const coinStakingPool = pgTable(
+	'coin_staking_pool',
+	{
+		id: serial('id').primaryKey(),
+		coinId: integer('coin_id')
+			.notNull()
+			.unique()
+			.references(() => coin.id, { onDelete: 'cascade' }),
+		totalStaked: decimal('total_staked', { precision: 30, scale: 8 }).notNull().default('0'),
+		distributionRate4h: decimal('distribution_rate_4h', { precision: 30, scale: 8 })
+			.notNull()
+			.default('0'),
+		rewardPerShare: decimal('reward_per_share', { precision: 30, scale: 8 }).notNull().default('0'),
+		lastEpochAt: timestamp('last_epoch_at', { withTimezone: true }).notNull().defaultNow()
+	}
+);
+
+export const userStake = pgTable(
+	'user_stake',
+	{
+		id: serial('id').primaryKey(),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		coinId: integer('coin_id')
+			.notNull()
+			.references(() => coin.id, { onDelete: 'cascade' }),
+		amount: decimal('amount', { precision: 30, scale: 8 }).notNull().default('0'),
+		rewardDebt: decimal('reward_debt', { precision: 30, scale: 8 }).notNull().default('0'),
+		claimableRewards: decimal('claimable_rewards', { precision: 30, scale: 8 })
+			.notNull()
+			.default('0'),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		userCoinUnique: unique('user_stake_user_coin_unique').on(table.userId, table.coinId)
+	})
+);
