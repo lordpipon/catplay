@@ -58,7 +58,7 @@
 		<HugeiconsIcon icon={CrownIcon} class="h-7 w-7 text-yellow-500" />
 		<div>
 			<h1 class="text-2xl font-bold">VIP Status</h1>
-			<p class="text-muted-foreground text-sm">1 month of premium perks for 1,000 gems</p>
+			<p class="text-muted-foreground text-sm">1 month of premium perks for 2,000 gems</p>
 		</div>
 	</div>
 
@@ -81,10 +81,10 @@
 						<Button
 							class="w-full bg-yellow-500 text-black hover:bg-yellow-400 font-bold"
 							onclick={purchaseVip}
-							disabled={buying || (status?.gems ?? 0) < (status?.cost ?? 1000)}
+							disabled={buying || (status?.gems ?? 0) < (status?.cost ?? 2000)}
 						>
 							<HugeiconsIcon icon={GemIcon} class="h-4 w-4 mr-1" />
-							{buying ? 'Processing...' : (status?.gems ?? 0) < 1000 ? `Need ${(1000 - (status?.gems ?? 0)).toLocaleString()} more gems` : `Extend — 1,000 Gems (have ${status.gems.toLocaleString()})`}
+							{buying ? 'Processing...' : (status?.gems ?? 0) < 2000 ? `Need ${(2000 - (status?.gems ?? 0)).toLocaleString()} more gems` : `Extend — 2,000 Gems (have ${status.gems.toLocaleString()})`}
 						</Button>
 					</div>
 				</Card.Content>
@@ -100,7 +100,7 @@
 						<div class="text-right">
 							<div class="flex items-center gap-1 text-2xl font-bold text-purple-400">
 								<HugeiconsIcon icon={GemIcon} class="h-6 w-6" />
-								1,000
+								2,000
 							</div>
 							<p class="text-muted-foreground text-xs">per month</p>
 						</div>
@@ -114,7 +114,7 @@
 						onclick={purchaseVip}
 						disabled={buying || (status?.gems ?? 0) < 1000}
 					>
-						{buying ? 'Processing...' : (status?.gems ?? 0) < 1000 ? `Need ${(1000 - (status?.gems ?? 0)).toLocaleString()} more gems` : 'Activate VIP — 1,000 Gems / month'}
+						{buying ? 'Processing...' : (status?.gems ?? 0) < 2000 ? `Need ${(2000 - (status?.gems ?? 0)).toLocaleString()} more gems` : 'Activate VIP — 2,000 Gems / month'}
 					</Button>
 					{#if (status?.gems ?? 0) < 1000}
 						<p class="text-center text-xs text-muted-foreground">

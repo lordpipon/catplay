@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { hasFlag, UserFlags } from '$lib/data/flags';
 import type { RequestHandler } from './$types';
 
-const VIP_COST = 1000; // gems per month
+const VIP_COST = 2000; // gems per month
 const VIP_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export const GET: RequestHandler = async ({ request }) => {

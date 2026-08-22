@@ -17,6 +17,9 @@ export const auth = betterAuth({
 	//    baseURL: publicEnv.PUBLIC_BETTER_AUTH_URL,
 	secret: privateEnv.PRIVATE_BETTER_AUTH_SECRET,
 	appName: 'Catplay',
+	logger: {
+		level: 'debug'
+	},
 
 	trustedOrigins: [
 		publicEnv.PUBLIC_BETTER_AUTH_URL,

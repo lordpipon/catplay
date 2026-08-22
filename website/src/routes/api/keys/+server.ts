@@ -37,12 +37,7 @@ export const POST: RequestHandler = async (event) => {
 
 	const apiKey = await auth.api.createApiKey({
 		body: {
-			name: 'API Key',
-			remaining: 2000,
-			permissions: {
-				api: ['read']
-			},
-			userId: session.user.id
+			name: 'API Key'
 		},
 		headers: event.request.headers
 	});
