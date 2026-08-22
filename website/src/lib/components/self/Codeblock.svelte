@@ -1,0 +1,47 @@
+<script>
+	import { scale } from 'svelte/transition';
+	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import { Tick01Icon, Copy01Icon } from '@hugeicons/core-free-icons';
+	import { Button } from '../ui/button';
+
+	const { text = '', displayOnly = false } = $props();
+	let isSuccess = $state(false);
+
+	async function copyToClipboard() {
+		try {
+			await navigator.clipboard.writeText(text);
+			isSuccess = true;
+			setTimeout(() => {
+				isSuccess = false;
+			}, 2000);
+		} catch (err) {
+			console.error('Failed to copy text:', err);
+		}
+	}
+</script>
+
+<div class="bg-primary/10 flex w-full items-center gap-2 overflow-hidden rounded-md border">
+	<code class="block flex-grow overflow-x-auto p-3 font-mono text-sm whitespace-pre-wrap">
+		{text}
+	</code>
+
+	{#if !displayOnly}
+		<Button
+			variant="ghost"
+			size="sm"
+			class="hover:bg-primary/15 mr-1 h-8 w-8 flex-shrink-0 p-0"
+			onclick={copyToClipboard}
+			aria-label="Copy to clipboard"
+		>
+			{#if isSuccess}
+				<div in:scale|fade={{ duration: 150 }}>
+					<HugeiconsIcon icon={Tick01Icon} class="h-4 w-4" />
+				</div>
+			{:else}
+				<div in:scale|fade={{ duration: 150 }}>
+					<HugeiconsIcon icon={Copy01Icon} class="h-4 w-4" />
+				</div>
+			{/if}
+		</Button>
+	{/if}
+</div>

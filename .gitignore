@@ -1,0 +1,21 @@
+.github
+review.js
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.sql.bak
+
+# Personal data / backups
+db_backup.sql
+
+# Builds
+website/build/
+website/.svelte-kit/
+website/node_modules/
+websocket/dist/

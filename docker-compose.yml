@@ -1,0 +1,68 @@
+services:
+  app:
+    build:
+      context: .
+      target: production-main
+      dockerfile: Dockerfile
+    ports:
+      - "5905-5906:3000"
+    env_file:
+      - website/.env
+    depends_on:
+      - websocket
+      - redis
+      - postgres
+    restart: unless-stopped
+    networks:
+      - shared_backend
+    volumes:
+      - uploads:/app/uploads
+    deploy:
+      replicas: 2
+
+  websocket:
+    build:
+      context: .
+      target: production-websocket
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8080"
+    env_file:
+      - website/.env
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - shared_backend
+
+  redis:
+    image: redis:7-alpine
+    container_name: catplay-redis
+    restart: unless-stopped
+    networks:
+      - shared_backend
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: catplay-postgres
+    restart: unless-stopped
+    networks:
+      - shared_backend
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: catuser
+      POSTGRES_PASSWORD: irenatomas1852
+      POSTGRES_DB: catplay
+
+networks:
+  shared_backend:
+    driver: bridge
+
+volumes:
+  uploads:
+  redis_data:
+  postgres_data:

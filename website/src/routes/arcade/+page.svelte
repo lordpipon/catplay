@@ -1,0 +1,234 @@
+<script lang="ts">
+	import Coinflip from '$lib/components/self/games/Coinflip.svelte';
+	import Slots from '$lib/components/self/games/Slots.svelte';
+	import Mines from '$lib/components/self/games/Mines.svelte';
+	import { USER_DATA } from '$lib/stores/user-data';
+	import { PORTFOLIO_SUMMARY, fetchPortfolioSummary } from '$lib/stores/portfolio-data';
+	import SignInConfirmDialog from '$lib/components/self/SignInConfirmDialog.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import SEO from '$lib/components/self/SEO.svelte';
+	import Dice from '$lib/components/self/games/Dice.svelte';
+	import Tower from '$lib/components/self/games/Tower.svelte';
+	import Blackjack from '$lib/components/self/games/Blackjack.svelte';
+	import HigherLower from '$lib/components/self/games/HigherLower.svelte';
+	import Roulette from '$lib/components/self/games/Roulette.svelte';
+	import Chicken from '$lib/components/self/games/Chicken.svelte';
+	import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '$lib/components/ui/card';
+	import { arcadeActivityStore } from '$lib/stores/websocket';
+	import * as Avatar from '$lib/components/ui/avatar';
+	import * as HoverCard from '$lib/components/ui/hover-card';
+	import UserProfilePreview from '$lib/components/self/UserProfilePreview.svelte';
+	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import {
+		Clock01Icon,
+		PiggyBankIcon,
+		CoinsDollarIcon,
+		StarsIcon,
+		BombIcon,
+		DiceIcon,
+		ElectricTower01Icon,
+		SpadesIcon,
+		CurvyUpDownDirectionIcon,
+		CircleIcon,
+		Target01Icon
+	} from '@hugeicons/core-free-icons';
+	import { formatValue, formatRelativeTime, getPublicUrl } from '$lib/utils';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+
+	interface EventData { multiplier: number; label: string; active: boolean; endsAt: string; }
+	let eventData = $state<EventData | null>(null);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/events');
+			if (res.ok) eventData = await res.json();
+		} catch {}
+	});
+
+	const games = [
+		{ id: 'coinflip', label: 'Coinflip', icon: CoinsDollarIcon },
+		{ id: 'slots', label: 'Slots', icon: StarsIcon },
+		{ id: 'mines', label: 'Mines', icon: BombIcon },
+		{ id: 'dice', label: 'Dice', icon: DiceIcon },
+		{ id: 'tower', label: 'Tower', icon: ElectricTower01Icon },
+		{ id: 'blackjack', label: 'Blackjack', icon: SpadesIcon },
+		{ id: 'higherlower', label: 'Higher/Lower', icon: CurvyUpDownDirectionIcon },
+		{ id: 'roulette', label: 'Roulette', icon: CircleIcon },
+		{ id: 'chicken', label: 'Chicken', icon: Target01Icon }
+	];
+
+	let shouldSignIn = $state(false);
+	let balance = $state(0);
+	let activeGame = $state('coinflip');
+
+	// Filter activities to only show bets >= $1000
+	const filteredActivities = $derived(
+		$arcadeActivityStore.filter((activity) => activity.amount >= 1000).slice(0, 10)
+	);
+
+	function handleBalanceUpdate(newBalance: number) {
+		balance = newBalance;
+
+		if ($PORTFOLIO_SUMMARY) {
+			PORTFOLIO_SUMMARY.update((data) =>
+				data
+					? {
+							...data,
+							baseCurrencyBalance: newBalance,
+							totalValue: newBalance + data.totalCoinValue
+						}
+					: null
+			);
+		}
+	}
+
+	$effect(() => {
+		if ($USER_DATA && $PORTFOLIO_SUMMARY) {
+			balance = $PORTFOLIO_SUMMARY.baseCurrencyBalance;
+		}
+	});
+</script>
+
+<SEO
+	title="Arcade - Catplay"
+	description="Play virtual arcade games with simulated currency in Catplay. Try coinflip, slots, and mines games using virtual money with no real-world value - purely for entertainment."
+	keywords="virtual arcade simulation, coinflip game, slots game, mines game, virtual arcade, simulated games, entertainment games"
+/>
+
+<SignInConfirmDialog bind:open={shouldSignIn} />
+
+<div class="container mx-auto p-6">
+	<h1 class="mb-6 text-center text-3xl font-bold">Arcade</h1>
+
+	{#if eventData?.active && eventData.multiplier > 1}
+		<div class="mb-4 rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-center">
+			<p class="text-orange-400 font-semibold">{eventData.label || eventData.multiplier + 'x Event'} — All winnings multiplied by <span class="text-orange-300 font-bold">{eventData.multiplier}x</span>!{eventData.endsAt ? ` Ends ${new Date(eventData.endsAt).toLocaleString()}` : ''}</p>
+		</div>
+	{/if}
+
+	{#if !$USER_DATA}
+		<div class="flex h-96 items-center justify-center">
+			<div class="text-center">
+				<div class="text-muted-foreground mb-4 text-xl">Sign in to play</div>
+				<p class="text-muted-foreground mb-4 text-sm">You need an account to play arcade games</p>
+				<Button onclick={() => (shouldSignIn = true)}>Sign In</Button>
+			</div>
+		</div>
+	{:else}
+		<div class="mx-auto max-w-4xl space-y-6">
+			<!-- Game Selection -->
+			<div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+				{#each games as game}
+					<Button
+						variant={activeGame === game.id ? 'default' : 'outline'}
+						class="flex h-auto w-full flex-col gap-1 py-3"
+						onclick={() => (activeGame = game.id)}
+					>
+						<HugeiconsIcon icon={game.icon} class="h-5 w-5" />
+						<span class="text-xs">{game.label}</span>
+					</Button>
+				{/each}
+			</div>
+
+			<!-- Game Content -->
+			{#if activeGame === 'coinflip'}
+				<Coinflip bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'slots'}
+				<Slots bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'mines'}
+				<Mines bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'dice'}
+				<Dice bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'tower'}
+				<Tower bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'blackjack'}
+				<Blackjack bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'higherlower'}
+				<HigherLower bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'roulette'}
+				<Roulette bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'chicken'}
+				<Chicken bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{/if}
+
+			<!-- Live Arcade Activity Feed -->
+			<Card>
+				<CardHeader>
+					<CardTitle>Live</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div class="space-y-3">
+						{#if filteredActivities.length === 0}
+							<div class="flex flex-col items-center justify-center py-8 text-center">
+								<HugeiconsIcon
+									icon={PiggyBankIcon}
+									class="text-muted-foreground/50 mb-4 h-12 w-12"
+								/>
+								<h3 class="mb-2 text-base font-semibold">Waiting for activity...</h3>
+								<p class="text-muted-foreground text-sm">
+									High stakes arcade activity will appear here in real-time.
+								</p>
+							</div>
+						{:else}
+							{#each filteredActivities as activity (`${activity.userId}-${activity.game}-${activity.timestamp}`)}
+								<div
+									class="hover:bg-muted/50 flex items-center justify-between rounded-lg border p-3 transition-colors"
+								>
+									<div class="flex items-center gap-3">
+										<HoverCard.Root>
+											<HoverCard.Trigger
+												class="cursor-pointer font-medium underline-offset-4 hover:underline"
+											>
+												<button
+													class="flex cursor-pointer items-center gap-2"
+													type="button"
+													onclick={() => goto(`/user/${activity.username}`)}
+												>
+													<Avatar.Root class="h-6 w-6">
+														<Avatar.Image
+															src={getPublicUrl(activity.userImage ?? null)}
+															alt={activity.username}
+														/>
+														<Avatar.Fallback class="text-xs"
+															>{activity.username.charAt(0).toUpperCase()}</Avatar.Fallback
+														>
+													</Avatar.Root>
+													<span class="text-sm">@{activity.username}</span>
+												</button>
+											</HoverCard.Trigger>
+											<HoverCard.Content class="w-80" side="top" sideOffset={3}>
+												<UserProfilePreview userId={parseInt(activity.userId)} />
+											</HoverCard.Content>
+										</HoverCard.Root>
+
+										<span class="text-muted-foreground text-sm"
+											>{activity.won ? 'won' : 'lost'}</span
+										>
+										<span
+											class="font-mono text-sm font-medium {activity.won
+												? 'text-green-500'
+												: 'text-red-500'}"
+										>
+											{formatValue(activity.amount)}
+										</span>
+										<span class="text-muted-foreground text-sm">on {activity.game}</span>
+									</div>
+
+									<div class="text-muted-foreground flex items-center gap-1 text-xs">
+										<HugeiconsIcon icon={Clock01Icon} class="h-3 w-3" />
+										<span class="font-mono">{formatRelativeTime(new Date(activity.timestamp))}</span
+										>
+									</div>
+								</div>
+							{/each}
+						{/if}
+					</div>
+				</CardContent>
+				<CardFooter>
+					<p class="text-muted-foreground text-xs">Showing bets of $1,000 or more only</p>
+				</CardFooter>
+			</Card>
+		</div>
+	{/if}
+</div>

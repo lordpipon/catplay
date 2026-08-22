@@ -1,0 +1,398 @@
+<script lang="ts">
+	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Select from '$lib/components/ui/select';
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
+	import { Badge } from '$lib/components/ui/badge';
+	import { Textarea } from '$lib/components/ui/textarea';
+	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import {
+		DollarCircleIcon,
+		Coins01Icon,
+		Loading03Icon,
+		SentIcon
+	} from '@hugeicons/core-free-icons';
+	import { PORTFOLIO_DATA } from '$lib/stores/portfolio-data';
+	import { toast } from 'svelte-sonner';
+	import { haptic } from '$lib/stores/haptics';
+	import { _ } from 'svelte-i18n';
+	let {
+		open = $bindable(false),
+		onSuccess,
+		prefilledUsername = ''
+	} = $props<{
+		open?: boolean;
+		onSuccess?: () => void;
+		prefilledUsername?: string;
+	}>();
+
+	let recipientUsername = $state('');
+	let transferType = $state('CASH');
+	let amount = $state('');
+	let selectedCoinSymbol = $state('');
+	let note = $state('');
+	let loading = $state(false);
+
+	let numericAmount = $derived(parseFloat(amount) || 0);
+	let hasValidAmount = $derived(numericAmount > 0);
+	let hasValidRecipient = $derived(recipientUsername.trim().length > 0);
+	let userBalance = $derived($PORTFOLIO_DATA ? $PORTFOLIO_DATA.baseCurrencyBalance : 0);
+	let coinHoldings = $derived($PORTFOLIO_DATA ? $PORTFOLIO_DATA.coinHoldings : []);
+
+	let selectedCoinHolding = $derived(
+		coinHoldings.find((holding) => holding.symbol === selectedCoinSymbol)
+	);
+
+	let estimatedValue = $derived(
+		transferType === 'COIN' && selectedCoinHolding && numericAmount > 0
+			? numericAmount * selectedCoinHolding.currentPrice
+			: 0
+	);
+
+	let maxAmount = $derived(
+		transferType === 'CASH' ? userBalance : selectedCoinHolding ? selectedCoinHolding.quantity : 0
+	);
+
+	let hasEnoughFunds = $derived(
+		transferType === 'CASH'
+			? numericAmount <= userBalance
+			: selectedCoinHolding
+				? numericAmount <= selectedCoinHolding.quantity
+				: false
+	);
+
+	let isWithinCashLimit = $derived(transferType === 'CASH' ? numericAmount >= 10 : true);
+
+	let isWithinCoinValueLimit = $derived(transferType === 'COIN' ? estimatedValue >= 10 : true);
+
+	let noteCharCount = $derived([...note].length);
+	let isNoteValid = $derived(noteCharCount <= 500);
+
+	let canSend = $derived(
+		hasValidAmount &&
+			hasValidRecipient &&
+			hasEnoughFunds &&
+			isWithinCashLimit &&
+			isWithinCoinValueLimit &&
+			isNoteValid &&
+			!loading &&
+			(transferType === 'CASH' || selectedCoinSymbol.length > 0)
+	);
+
+	function handleClose() {
+		open = false;
+		recipientUsername = '';
+		transferType = 'CASH';
+		amount = '';
+		selectedCoinSymbol = '';
+		note = '';
+		loading = false;
+	}
+
+	function setMaxAmount() {
+		if (transferType === 'CASH') {
+			amount = Math.max(maxAmount, 10).toString();
+		} else {
+			amount = maxAmount.toString();
+		}
+	}
+
+	function handleTypeChange(value: string) {
+		transferType = value;
+		if (value === 'CASH') {
+			selectedCoinSymbol = '';
+		} else if (coinHoldings.length > 0) {
+			selectedCoinSymbol = coinHoldings[0].symbol;
+		}
+		amount = '';
+	}
+
+	$effect(() => {
+		if (open && prefilledUsername) {
+			recipientUsername = prefilledUsername;
+		}
+	});
+
+	async function handleSend() {
+		if (!canSend) return;
+
+		loading = true;
+		try {
+			const response = await fetch('/api/transfer', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					recipientUsername: recipientUsername.trim(),
+					type: transferType,
+					amount: numericAmount,
+					coinSymbol: transferType === 'COIN' ? selectedCoinSymbol : undefined,
+					note: note.trim() || undefined
+				})
+			});
+
+			const result = await response.json();
+
+			if (!response.ok) {
+				if (result.message) {
+					throw new Error(result.message);
+				}
+
+				throw new Error(result.error || 'Transfer failed');
+			}
+
+			if (result.type === 'CASH') {
+				haptic.trigger('success');
+				toast.success('Money sent successfully!', {
+					description: `Sent $${result.amount.toFixed(2)} to @${result.recipient}`
+				});
+			} else {
+				const estimatedValueForToast = estimatedValue;
+				haptic.trigger('success');
+				toast.success($_('portfolio.send_money.coins.6'), {
+					description: $_('portfolio.send_money.coins.7')
+						.replace('{{amount}}', result.amount.toFixed(6))
+						.replace('{{symbol}}', result.coinSymbol)
+						.replace('{{estimated}}', estimatedValueForToast.toFixed(2))
+						.replace('{{recipent}}', result.recipent) //`Sent ${result.amount.toFixed(6)} ${result.coinSymbol} (≈$${estimatedValueForToast.toFixed(2)}) to @${result.recipient}`
+				});
+			}
+
+			onSuccess?.();
+			handleClose();
+		} catch (e) {
+			haptic.trigger('error');
+			toast.error('Transfer failed', {
+				description: (e as Error).message
+			});
+		} finally {
+			loading = false;
+		}
+	}
+
+	let transferTypeOptions = [
+		{ value: 'CASH', label: $_('portfolio.send_money.type.1') },
+		{ value: 'COIN', label: $_('portfolio.send_money.type.2') }
+	];
+
+	let currentTransferTypeLabel = $derived(
+		transferTypeOptions.find((option) => option.value === transferType)?.label ||
+			$_('portfolio.send_money.type.3')
+	);
+
+	let currentCoinLabel = $derived(
+		!selectedCoinSymbol
+			? 'Select coin to send'
+			: (() => {
+					const holding = coinHoldings.find((h) => h.symbol === selectedCoinSymbol);
+					return holding
+						? `*${holding.symbol} (${holding.quantity.toFixed(6)} available)`
+						: selectedCoinSymbol;
+				})()
+	);
+
+	function handleCoinChange(value: string) {
+		selectedCoinSymbol = value;
+	}
+</script>
+
+<Dialog.Root bind:open>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title class="flex items-center gap-2">
+				<HugeiconsIcon icon={SentIcon} class="h-5 w-5" />
+				{$_('portfolio.send_money.send.0')}
+			</Dialog.Title>
+			<Dialog.Description>{$_('portfolio.send_money.description')}</Dialog.Description>
+		</Dialog.Header>
+
+		<div class="space-y-4">
+			<!-- Recipient Username -->
+			<div class="space-y-2">
+				<Label for="recipient">{$_('portfolio.send_money.recipient.0')}</Label>
+				<Input
+					id="recipient"
+					type="text"
+					bind:value={recipientUsername}
+					placeholder={$_('portfolio.send_money.recipient.1')}
+					class="flex-1"
+				/>
+			</div>
+
+			<!-- Transfer Type -->
+			<div class="space-y-2">
+				<Label>Type</Label>
+				<Select.Root type="single" bind:value={transferType} onValueChange={handleTypeChange}>
+					<Select.Trigger class="w-full">
+						{currentTransferTypeLabel}
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Group>
+							<Select.Item value="CASH" label="Cash ($)">
+								<div class="flex items-center gap-2">
+									<HugeiconsIcon icon={DollarCircleIcon} class="h-4 w-4" />
+									{$_('portfolio.send_money.type.1')}
+								</div>
+							</Select.Item>
+							<Select.Item value="COIN" label="Coins" disabled={coinHoldings.length === 0}>
+								<div class="flex items-center gap-2">
+									<HugeiconsIcon icon={Coins01Icon} class="h-4 w-4" />
+									{$_('portfolio.send_money.type.2')}
+								</div>
+							</Select.Item>
+						</Select.Group>
+					</Select.Content>
+				</Select.Root>
+			</div>
+
+			<!-- Coin Selection (if coin transfer) -->
+			{#if transferType === 'COIN'}
+				<div class="space-y-2">
+					<Label>{$_('portfolio.send_money.coins.0')}</Label>
+					<Select.Root
+						type="single"
+						bind:value={selectedCoinSymbol}
+						onValueChange={handleCoinChange}
+					>
+						<Select.Trigger class="w-full">
+							{currentCoinLabel}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each coinHoldings as holding}
+									<Select.Item value={holding.symbol} label="*{holding.symbol}">
+										*{holding.symbol} ({holding.quantity.toFixed(6)} available)
+									</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				</div>
+			{/if}
+
+			<!-- Amount Input -->
+			<div class="space-y-2">
+				<Label for="amount">
+					{transferType === 'CASH'
+						? $_('portfolio.send_money.cash.0')
+						: $_('portfolio.send_money.coins.1').replace('{{coinSymbol}}', selectedCoinSymbol)}
+				</Label>
+				<div class="flex gap-2">
+					<Input
+						id="amount"
+						type="number"
+						step={transferType === 'CASH' ? '0.01' : '0.000001'}
+						min="0"
+						bind:value={amount}
+						placeholder="0.00"
+						class="flex-1"
+					/>
+					<Button variant="outline" size="icon" class="w-14" onclick={setMaxAmount}
+						>{$_('global.max')}</Button
+					>
+				</div>
+				<div class="flex justify-between text-xs">
+					<p class="text-muted-foreground">
+						{transferType === 'CASH'
+							? $_('portfolio.send_money.cash.1').replace('{{balance}}', userBalance.toFixed(2))
+							: $_('portfolio.send_money.coins.2').replace(
+									'{{shares}}',
+									selectedCoinHolding
+										? `${selectedCoinHolding.quantity.toFixed(6)} ${selectedCoinSymbol}`
+										: '0'
+								)}
+					</p>
+					{#if transferType === 'COIN' && estimatedValue > 0}
+						<p class="text-muted-foreground">
+							≈ ${estimatedValue.toFixed(2)}
+						</p>
+					{/if}
+				</div>
+				{#if transferType === 'CASH'}
+					<p class="text-muted-foreground text-xs">{$_('portfolio.send_money.cash.2')}</p>
+				{:else if transferType === 'COIN'}
+					<p class="text-muted-foreground text-xs">{$_('portfolio.send_money.coins.3')}</p>
+				{/if}
+			</div>
+
+			<!-- Optional Note -->
+			<div class="space-y-2">
+				<Label for="note"
+					>{$_('portfolio.send_money.note.0')}
+					<span class="text-muted-foreground font-normal">{$_('portfolio.send_money.note.1')}</span
+					></Label
+				>
+				<Textarea
+					id="note"
+					bind:value={note}
+					placeholder={$_('portfolio.send_money.note.2')}
+					class="resize-none text-sm"
+					rows={3}
+				/>
+				<p
+					class="text-end text-xs {noteCharCount > 500
+						? 'text-destructive font-medium'
+						: 'text-muted-foreground'}"
+				>
+					{noteCharCount}/500
+				</p>
+			</div>
+
+			{#if !hasEnoughFunds && hasValidAmount}
+				<Badge variant="destructive" class="text-xs">
+					Insufficient {transferType === 'CASH' ? 'funds' : 'coins'}
+				</Badge>
+			{:else if !isWithinCashLimit && hasValidAmount}
+				<Badge variant="destructive" class="text-xs">
+					{$_('portfolio.send_money.cash.3')}
+				</Badge>
+			{:else if !isWithinCoinValueLimit && hasValidAmount}
+				<Badge variant="destructive" class="text-xs">
+					{$_('portfolio.send_money.coins.3')}
+				</Badge>
+			{/if}
+
+			{#if hasValidAmount && hasEnoughFunds && hasValidRecipient && isWithinCashLimit && isWithinCoinValueLimit}
+				<div class="bg-muted/50 rounded-lg p-3">
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-medium">{$_('portfolio.send_money.youre_sending.0')}</span>
+						<div class="text-right">
+							<span class="block font-bold">
+								{transferType === 'CASH'
+									? `$${numericAmount.toFixed(2)}`
+									: `${numericAmount.toFixed(6)} ${selectedCoinSymbol}`}
+							</span>
+							{#if transferType === 'COIN' && estimatedValue > 0}
+								<span class="text-muted-foreground text-xs">
+									{$_('portfolio.send_money.youre_sending.1').replace(
+										'{{amount}}',
+										estimatedValue.toFixed(2)
+									)}
+								</span>
+							{/if}
+						</div>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-medium">{$_('portfolio.send_money.youre_sending.2')}</span>
+						<span class="font-bold">@{recipientUsername}</span>
+					</div>
+				</div>
+			{/if}
+		</div>
+
+		<Dialog.Footer class="flex gap-2">
+			<Button variant="outline" onclick={handleClose} disabled={loading}>Cancel</Button>
+			<Button onclick={handleSend} disabled={!canSend}>
+				{#if loading}
+					<HugeiconsIcon icon={Loading03Icon} class="h-4 w-4 animate-spin" />
+					{$_('portfolio.send_money.send.1')}
+				{:else}
+					<HugeiconsIcon icon={SentIcon} class="h-4 w-4" />
+					{$_('portfolio.send_money.send.0')}
+				{/if}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
