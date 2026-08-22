@@ -1,6 +1,6 @@
-<img style="width: 128px; height: 128px" src="website/static/favicon.svg" /><h1 style="font-size: 48px"><a href="https://xprismplay.dpdns.org">xprismplay.dpdns.org</a> - the fake crypto simulator.</h1>
+<img style="width: 128px; height: 128px" src="website/static/favicon.svg" /><h1 style="font-size: 48px"><a href="https://catplay.org">catplay.org</a> - the fake crypto simulator.</h1>
 
-[Privacy Policy](https://xprismplay.dpdns.org/legal/privacy) | [Terms of Service](https://xprismplay.dpdns.org/legal/terms) | [License](LICENSE) | [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)
+[Privacy Policy](https://catplay.org/legal/privacy) | [Terms of Service](https://catplay.org/legal/terms) | [License](LICENSE) | [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)
 
 ## About
 
@@ -33,15 +33,15 @@ Before you begin, make sure you have the following installed:
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/xprismplay/XprismPlay.git
-   cd XprismPlay
+   git clone https://github.com/lordpipon/catplay.git
+   cd catplay
    ```
 
 2. **Set up Redis**
 
    Create a Redis Docker container:
    ```bash
-   docker run -d --name XprismPlay-redis -p 6379:6379 -v XprismPlay_redisdata:/data --restart unless-stopped redis:8-alpine redis-server --save 60 1
+   docker run -d --name catplay-redis -p 6379:6379 -v catplay_redisdata:/data --restart unless-stopped redis:8-alpine redis-server --save 60 1
    ```
 
    **Alternative:** You can also [download and install Redis directly](https://redis.io/downloads/) for your operating system, or use a managed Redis service such as Redis Cloud.
@@ -52,7 +52,7 @@ Before you begin, make sure you have the following installed:
 
    - **Run Postgres locally with Docker:**
      ```bash
-     docker run -d --name XprismPlay-postgres -e POSTGRES_USER=pguser -e POSTGRES_PASSWORD=pgpass -e POSTGRES_DB=XprismPlay -p 5432:5432 -v XprismPlay_pgdata:/var/lib/postgresql/data --restart unless-stopped pgvector/pgvector:pg16
+     docker run -d --name catplay-postgres -e POSTGRES_USER=pguser -e POSTGRES_PASSWORD=pgpass -e POSTGRES_DB=catplay -p 5432:5432 -v catplay_pgdata:/var/lib/postgresql/data --restart unless-stopped pgvector/pgvector:pg16
      ```
 
    - **Use a managed cloud Postgres provider:**
@@ -62,7 +62,7 @@ Before you begin, make sure you have the following installed:
 
    If you are running Postgres locally, you can seed the database with:
    ```bash
-   docker exec -it XprismPlay-postgres psql -d XprismPlay -U pguser
+   docker exec -it catplay-postgres psql -d catplay -U pguser
    ```
    Then, copy and paste the SQL from the migration files (e.g. `website/drizzle/0000_crazy_bloodstrike.sql`).
 
@@ -89,7 +89,7 @@ Before you begin, make sure you have the following installed:
 
    ```ini
    # --- Database ---
-   DATABASE_URL=postgres://pguser:pgpass@localhost:5432/XprismPlay   # PostgreSQL connection string
+   DATABASE_URL=postgres://pguser:pgpass@localhost:5432/catplay   # PostgreSQL connection string
    POSTGRES_USER=pguser      # PostgreSQL username (should match Docker config)
    POSTGRES_PASSWORD=pgpass  # PostgreSQL password (should match Docker config)
    POSTGRES_DB=XprismPlay       # PostgreSQL database name (should match Docker config)
