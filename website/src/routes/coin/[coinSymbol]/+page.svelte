@@ -675,7 +675,7 @@
 			{#if isCreator}
 				<Dialog.Root bind:open={deleteDialogOpen}>
 					<Dialog.Trigger
-						class="inline-flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
+						class="mt-2 inline-flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
 					>
 						<HugeiconsIcon icon={Delete01Icon} class="h-3.5 w-3.5" />
 						Delete Coin
