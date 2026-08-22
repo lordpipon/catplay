@@ -194,7 +194,7 @@
 							Include your API key in the Authorization header for all requests:
 						</p>
 						<Codeblock
-							text={`Authorization: Bearer ${data.apiKey?.prefix ?? 'rgpl_'}your_api_key`}
+							text={`Authorization: Bearer ${data.apiKey?.prefix ?? 'ctpl_'}your_api_key`}
 							displayOnly={true}
 						/>
 					</Collapsible.Content>
@@ -287,11 +287,11 @@ while True:
 							<h4 class="font-medium">curl — quick checks from the terminal</h4>
 							<Codeblock
 								text={`# Top movers
-curl -H "Authorization: Bearer rgpl_yourkey" \\
+curl -H "Authorization: Bearer ctpl_yourkey" \\
   "https://catplay.dpdns.org/api/v1/market?sortBy=change24h&sortOrder=desc&limit=5"
 
 # Coin details with candles
-curl -H "Authorization: Bearer rgpl_yourkey" \\
+curl -H "Authorization: Bearer ctpl_yourkey" \\
   "https://catplay.dpdns.org/api/v1/coin/TEST"`}
 								displayOnly={true}
 							/>

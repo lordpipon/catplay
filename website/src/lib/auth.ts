@@ -31,7 +31,7 @@ export const auth = betterAuth({
 
 	plugins: [
 		apiKey({
-			defaultPrefix: 'rgpl_',
+			defaultPrefix: 'ctpl_',
 			rateLimit: {
 				enabled: true,
 				timeWindow: 1000 * 60 * 60 * 24, // 1 day
