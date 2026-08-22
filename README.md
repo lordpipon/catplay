@@ -1,4 +1,4 @@
-<img style="width: 128px; height: 128px" src="website/static/favicon.svg" /><h1 style="font-size: 48px"><a href="https://catplay.dpdns.org">catplay.dpdns.org</a> - the fake crypto simulator.</h1>
+<img style="width: 128px; height: 128px" src="website/static/catplay.png" /><h1 style="font-size: 48px"><a href="https://catplay.dpdns.org">catplay.dpdns.org</a> - the fake crypto simulator.</h1>
 
 [Privacy Policy](https://catplay.dpdns.org/legal/privacy) | [Terms of Service](https://catplay.dpdns.org/legal/terms) | [License](LICENSE) | [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)
 
