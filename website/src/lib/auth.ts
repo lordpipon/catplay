@@ -25,6 +25,8 @@ export const auth = betterAuth({
 		publicEnv.PUBLIC_BETTER_AUTH_URL,
 		'https://catplay.dpdns.org',
 		'http://catplay.dpdns.org',
+		'https://catplay.lordpipon.com',
+		'http://catplay.lordpipon.com',
 		'http://localhost:5173',
 		'http://localhost:4173'
 	],

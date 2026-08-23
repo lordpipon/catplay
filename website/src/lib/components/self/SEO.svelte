@@ -29,7 +29,7 @@
 	let canonical = $derived(canonicalUrl || currentUrl);
 
 	let fullImageUrl = $derived(
-		image?.startsWith('http') ? image : `${$page?.url?.origin || 'https://catplay.dpdns.org'}${image}`
+		image?.startsWith('http') ? image : `${$page?.url?.origin || 'https://catplay.lordpipon.com'}${image}`
 	);
 
 	let defaultKeywords =
