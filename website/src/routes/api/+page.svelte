@@ -226,7 +226,7 @@
 							<h4 class="font-medium">JavaScript — live market watcher (Node 18+ / Bun)</h4>
 							<Codeblock
 								text={`const API_KEY = process.env.CATPLAY_API_KEY;
-const BASE = 'https://catplay.lordpipon.com';
+const BASE = 'https://catplay.dpdns.org';
 
 async function api(path) {
   const res = await fetch(BASE + path, {
@@ -288,11 +288,11 @@ while True:
 							<Codeblock
 								text={`# Top movers
 curl -H "Authorization: Bearer ctpl_yourkey" \\
-  "https://catplay.lordpipon.com/api/v1/market?sortBy=change24h&sortOrder=desc&limit=5"
+  "https://catplay.dpdns.org/api/v1/market?sortBy=change24h&sortOrder=desc&limit=5"
 
 # Coin details with candles
 curl -H "Authorization: Bearer ctpl_yourkey" \\
-  "https://catplay.lordpipon.com/api/v1/coin/TEST"`}
+  "https://catplay.dpdns.org/api/v1/coin/TEST"`}
 								displayOnly={true}
 							/>
 						</div>
@@ -330,7 +330,7 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
 						<p class="text-muted-foreground text-sm">Returns the top 50 coins by market cap.</p>
 						<div class="space-y-2">
 							<h4 class="font-medium">Endpoint</h4>
-							<Codeblock text="GET https://catplay.lordpipon.com/api/v1/top" displayOnly={true} />
+							<Codeblock text="GET https://catplay.dpdns.org/api/v1/top" displayOnly={true} />
 						</div>
 						<div class="space-y-2">
 							<h4 class="font-medium">Example Response</h4>
@@ -375,7 +375,7 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
 						</p>
 						<div class="space-y-2">
 							<h4 class="font-medium">Endpoint</h4>
-							<Codeblock text="GET https://catplay.lordpipon.com/api/v1/market" displayOnly={true} />
+							<Codeblock text="GET https://catplay.dpdns.org/api/v1/market" displayOnly={true} />
 						</div>
 						<div class="space-y-2">
 							<h4 class="font-medium">Query Parameters</h4>
@@ -460,7 +460,7 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
 						<div class="space-y-2">
 							<h4 class="font-medium">Endpoint</h4>
 							<Codeblock
-								text="GET https://catplay.lordpipon.com/api/v1/coin/&lbrace;symbol&rbrace;"
+								text="GET https://catplay.dpdns.org/api/v1/coin/&lbrace;symbol&rbrace;"
 								displayOnly={true}
 							/>
 						</div>
@@ -550,7 +550,7 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
 						<div class="space-y-2">
 							<h4 class="font-medium">Endpoint</h4>
 							<Codeblock
-								text="GET https://catplay.lordpipon.com/api/v1/holders/&lbrace;symbol&rbrace;"
+								text="GET https://catplay.dpdns.org/api/v1/holders/&lbrace;symbol&rbrace;"
 								displayOnly={true}
 							/>
 						</div>
@@ -620,7 +620,7 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
 						</p>
 						<div class="space-y-2">
 							<h4 class="font-medium">Endpoint</h4>
-							<Codeblock text="GET https://catplay.lordpipon.com/api/v1/hopium" displayOnly={true} />
+							<Codeblock text="GET https://catplay.dpdns.org/api/v1/hopium" displayOnly={true} />
 						</div>
 						<div class="space-y-2">
 							<h4 class="font-medium">Query Parameters</h4>
@@ -704,7 +704,7 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
 						<div class="space-y-2">
 							<h4 class="font-medium">Endpoint</h4>
 							<Codeblock
-								text="GET https://catplay.lordpipon.com/api/v1/hopium/&lbrace;question_id&rbrace;"
+								text="GET https://catplay.dpdns.org/api/v1/hopium/&lbrace;question_id&rbrace;"
 								displayOnly={true}
 							/>
 						</div>
