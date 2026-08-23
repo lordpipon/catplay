@@ -5,6 +5,7 @@
 	import { Toaster } from '$lib/components/ui/sonner';
 
 	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
+	import PasswordSetupPrompt from '$lib/components/self/PasswordSetupPrompt.svelte';
 
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { onMount, untrack } from 'svelte';
@@ -125,6 +126,7 @@
 
 <Sidebar.Provider>
 	<AppSidebar />
+	<PasswordSetupPrompt />
 
 	<Sidebar.Inset class="sidebar-container">
 		<header

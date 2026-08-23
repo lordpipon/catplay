@@ -29,6 +29,7 @@
 	import { volumeSettings } from '$lib/stores/volume-settings';
 	import { USER_DATA } from '$lib/stores/user-data';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import { client } from '$lib/auth-client';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { haptic } from '$lib/stores/haptics';
 	import { Select } from 'bits-ui';
@@ -295,6 +296,149 @@
 		volumeSettings.setMuted(isMuted);
 		saveVolumeToServer({ master: masterVolume / 100, muted: isMuted });
 	}
+
+	let secStatus = $state<{ hasPassword: boolean; googleLinked: boolean; canUnlinkGoogle: boolean } | null>(
+		null
+	);
+	let newEmail = $state('');
+	let currentPassword = $state('');
+	let newPassword = $state('');
+	let confirmNewPassword = $state('');
+	let setPass1 = $state('');
+	let setPass2 = $state('');
+	let secBusy = $state(false);
+
+	async function loadSecurity() {
+		try {
+			const res = await fetch('/api/user/security');
+			if (res.ok) secStatus = await res.json();
+		} catch {
+			// ignore
+		}
+	}
+
+	async function setPasswordInline() {
+		if (secBusy) return;
+		if (setPass1.length < 8) {
+			toast.error('Password must be at least 8 characters');
+			return;
+		}
+		if (setPass1 !== setPass2) {
+			toast.error("Passwords don't match");
+			return;
+		}
+		secBusy = true;
+		try {
+			const res = await fetch('/api/user/set-password', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ newPassword: setPass1 })
+			});
+			const d = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				toast.error(d.message || d.error || 'Failed to set password');
+				return;
+			}
+			toast.success('Password set! You can now sign in with email too.');
+			setPass1 = '';
+			setPass2 = '';
+			await loadSecurity();
+		} finally {
+			secBusy = false;
+		}
+	}
+
+	async function changePassword() {
+		if (secBusy) return;
+		if (newPassword.length < 8) {
+			toast.error('Password must be at least 8 characters');
+			return;
+		}
+		if (newPassword !== confirmNewPassword) {
+			toast.error("Passwords don't match");
+			return;
+		}
+		secBusy = true;
+		try {
+			const res = await fetch('/api/auth/change-password', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ currentPassword, newPassword })
+			});
+			const d = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				toast.error(d.message || d.error || 'Failed to change password');
+				return;
+			}
+			toast.success('Password changed!');
+			currentPassword = '';
+			newPassword = '';
+			confirmNewPassword = '';
+		} finally {
+			secBusy = false;
+		}
+	}
+
+	async function changeEmail() {
+		if (secBusy) return;
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+			toast.error('Enter a valid email address');
+			return;
+		}
+		secBusy = true;
+		try {
+			const res = await fetch('/api/auth/change-email', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ newEmail })
+			});
+			const d = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				toast.error(d.message || d.error || 'Failed to change email');
+				return;
+			}
+			toast.success(`Email updated to ${newEmail}`);
+			newEmail = '';
+			await loadSecurity();
+			await invalidateAll();
+		} finally {
+			secBusy = false;
+		}
+	}
+
+	async function linkGoogle() {
+		try {
+			await client.linkSocial({ provider: 'google', callbackURL: '/settings' });
+		} catch {
+			toast.error('Failed to start Google linking');
+		}
+	}
+
+	async function unlinkGoogle() {
+		if (!secStatus?.canUnlinkGoogle) return;
+		if (!confirm('Unlink your Google account?')) return;
+		secBusy = true;
+		try {
+			const res = await fetch('/api/auth/unlink-account', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ providerId: 'google' })
+			});
+			const d = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				toast.error(d.message || d.error || 'Failed to unlink Google');
+				return;
+			}
+			toast.success('Google account unlinked');
+			await loadSecurity();
+		} finally {
+			secBusy = false;
+		}
+	}
+
+	onMount(() => {
+		loadSecurity();
+	});
 
 	async function downloadUserData() {
 		isDownloading = true;
@@ -684,6 +828,91 @@
 							</div>
 						{/if}
 					{/if}
+				</Card.Content>
+			</Card.Root>
+
+			<Card.Root>
+				<Card.Header>
+					<Card.Title>Account &amp; Security</Card.Title>
+					<Card.Description>Manage your password, email, and sign-in methods</Card.Description>
+				</Card.Header>
+				<Card.Content class="space-y-4">
+					<!-- Sign-in methods -->
+					<div class="flex items-center justify-between rounded-lg border p-4">
+						<div class="space-y-1">
+							<h4 class="text-sm font-medium">Sign-in Methods</h4>
+							<p class="text-muted-foreground text-xs flex items-center gap-2 flex-wrap">
+								{#if secStatus?.hasPassword}
+									<span class="inline-flex items-center gap-1"><HugeiconsIcon icon={Tick01Icon} class="h-3.5 w-3.5 text-green-500" />Email &amp; Password</span>
+								{:else}
+									<span class="text-muted-foreground">No password set</span>
+								{/if}
+								<span class="opacity-40">·</span>
+								{#if secStatus?.googleLinked}
+									<span class="inline-flex items-center gap-1"><HugeiconsIcon icon={Tick01Icon} class="h-3.5 w-3.5 text-green-500" />Google</span>
+								{:else}
+									<span class="text-muted-foreground">Google not linked</span>
+								{/if}
+							</p>
+						</div>
+						{#if secStatus && !secStatus.googleLinked}
+							<Button variant="outline" size="sm" onclick={linkGoogle} disabled={secBusy} class="ml-4">
+								Link Google
+							</Button>
+						{:else if secStatus?.googleLinked && secStatus.canUnlinkGoogle}
+							<Button variant="outline" size="sm" onclick={unlinkGoogle} disabled={secBusy} class="ml-4">
+								Unlink Google
+							</Button>
+						{/if}
+					</div>
+
+					<!-- Set password (no password yet) -->
+					{#if secStatus && !secStatus.hasPassword}
+						<div class="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+							<h4 class="text-sm font-medium text-amber-500">Set a Password</h4>
+							<p class="text-muted-foreground text-xs">
+								Set a password so you can also sign in with your email address.
+							</p>
+							<div class="grid gap-2 sm:grid-cols-2">
+								<Input type="password" placeholder="New password (min 8 chars)" bind:value={setPass1} />
+								<Input
+									type="password"
+									placeholder="Confirm password"
+									bind:value={setPass2}
+									onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && setPasswordInline()}
+								/>
+							</div>
+							<Button size="sm" onclick={setPasswordInline} disabled={secBusy}>Set Password</Button>
+						</div>
+					{:else if secStatus?.hasPassword}
+						<!-- Change password -->
+						<div class="rounded-lg border p-4 space-y-3">
+							<h4 class="text-sm font-medium">Change Password</h4>
+							<div class="grid gap-2 sm:grid-cols-3">
+								<Input type="password" placeholder="Current password" bind:value={currentPassword} />
+								<Input type="password" placeholder="New password" bind:value={newPassword} />
+								<Input
+									type="password"
+									placeholder="Confirm new password"
+									bind:value={confirmNewPassword}
+									onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && changePassword()}
+								/>
+							</div>
+							<Button size="sm" onclick={changePassword} disabled={secBusy || !currentPassword || !newPassword}>
+								Update Password
+							</Button>
+						</div>
+					{/if}
+
+					<!-- Change email -->
+					<div class="rounded-lg border p-4 space-y-3">
+						<h4 class="text-sm font-medium">Change Email</h4>
+						<p class="text-muted-foreground text-xs">Current email: {$USER_DATA?.email}</p>
+						<div class="flex gap-2">
+							<Input type="email" placeholder="New email address" bind:value={newEmail} />
+							<Button size="sm" onclick={changeEmail} disabled={secBusy || !newEmail}>Update Email</Button>
+						</div>
+					</div>
 				</Card.Content>
 			</Card.Root>
 

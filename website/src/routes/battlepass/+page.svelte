@@ -48,12 +48,11 @@
 		return { current, target: tier.taskTarget, pct: Math.min(100, Math.round((current / tier.taskTarget) * 100)) };
 	}
 
-	function daysLeft(): string {
-		if (!season) return '';
-		const diff = new Date(season.endsAt).getTime() - Date.now();
-		if (diff <= 0) return 'Ended';
-		const days = Math.ceil(diff / 86400000);
-		return `${days} day${days !== 1 ? 's' : ''} left`;
+	function formatCount(n: number): string {
+		if (n >= 1e9) return `${(n / 1e9).toFixed(1).replace(/\.0$/, '')}B`;
+		if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
+		if (n >= 1e4) return `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K`;
+		return n.toLocaleString();
 	}
 
 	async function load() {
@@ -151,12 +150,12 @@
 		<Card.Root class="border-primary/30 bg-primary/5">
 			<Card.Content class="p-4 flex items-center justify-between">
 				<div>
-					<p class="font-bold text-lg">{season.name}</p>
-					{#if season.description}<p class="text-muted-foreground text-sm">{season.description}</p>{/if}
+					<p class="font-bold text-lg">Catplay Battlepass</p>
+					<p class="text-muted-foreground text-sm">Complete challenges to level up and earn rewards</p>
 				</div>
 				<div class="text-right">
 					<p class="text-2xl font-bold">Level {currentLevel}</p>
-					<p class="text-muted-foreground text-xs">{daysLeft()} · {levels.length} levels total</p>
+					<p class="text-muted-foreground text-xs">100 levels total</p>
 				</div>
 			</Card.Content>
 		</Card.Root>
@@ -172,12 +171,12 @@
 			</Button>
 		{/if}
 
-		<!-- Activity summary -->
-		<div class="grid grid-cols-2 gap-3 text-center">
-			{#each [['trades','Trades'], ['arcade_games','Arcade Games']] as [key, label]}
+		<!-- Your stats -->
+		<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+			{#each [['trades','Trades (season)'], ['arcade_games','Arcade (season)'], ['volume_traded','Total Volume'], ['portfolio_value','Net Worth']] as [key, label]}
 				<Card.Root>
 					<Card.Content class="p-3">
-						<p class="text-lg font-bold">{counts[key] ?? 0}</p>
+						<p class="text-lg font-bold">{formatCount(counts[key] ?? 0)}</p>
 						<p class="text-muted-foreground text-xs">{label}</p>
 					</Card.Content>
 				</Card.Root>

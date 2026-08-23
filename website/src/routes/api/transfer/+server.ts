@@ -66,6 +66,15 @@ export const POST: RequestHandler = async ({ request }) => {
 		const senderId = Number(session.user.id);
 
 		return await db.transaction(async (tx) => {
+			// Cash-transfer ledger rows need a valid coin reference; use a stable seeded coin
+			const [ledgerCoin] = await tx
+				.select({ id: coin.id })
+				.from(coin)
+				.where(eq(coin.symbol, 'BTC'))
+				.limit(1);
+			const ledgerCoinId = ledgerCoin?.id ?? (await tx.select({ id: coin.id }).from(coin).orderBy(coin.id).limit(1))[0]?.id;
+			if (!ledgerCoinId) throw error(500, 'No coins exist');
+
 			const [senderData] = await tx
 				.select({
 					id: user.id,
@@ -133,7 +142,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 				await tx.insert(transaction).values({
 					userId: senderId,
-					coinId: 1,
+					coinId: ledgerCoinId,
 					type: 'TRANSFER_OUT',
 					quantity: '0',
 					pricePerCoin: '1',
@@ -146,7 +155,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 				await tx.insert(transaction).values({
 					userId: recipientData.id,
-					coinId: 1,
+					coinId: ledgerCoinId,
 					type: 'TRANSFER_IN',
 					quantity: '0',
 					pricePerCoin: '1',

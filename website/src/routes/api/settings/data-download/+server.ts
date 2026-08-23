@@ -125,7 +125,12 @@ export async function GET({ request }) {
 			commentLikes, promoCodeRedemptions: promoRedemptions, sessions, createdCoins, createdQuestions
 		};
 
-		const jsonData = JSON.stringify(exportData, null, 2);
+		// drizzle bigint columns (e.g. user.flags) are not JSON-serializable
+		const jsonData = JSON.stringify(
+			exportData,
+			(_, v) => (typeof v === 'bigint' ? v.toString() : v),
+			2
+		);
 		const dataSize = new TextEncoder().encode(jsonData).length;
 
 		return new Response(jsonData, {

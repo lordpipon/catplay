@@ -1,13 +1,8 @@
 import type { LayoutServerLoad } from './$types';
-import { dev } from '$app/environment';
 
 export const load: LayoutServerLoad = async (event) => {
-	// Only set Cache-Control if not already set
-	if (!event.request.headers.get('cache-control')) {
-		event.setHeaders({
-			'Cache-Control': dev ? 'no-cache' : 'private, max-age=30'
-		});
-	}
+	// Session data must never be served stale from the HTTP cache
+	event.setHeaders({ 'Cache-Control': 'no-cache' });
 
 	// Use the user data already fetched and processed in hooks
 	return {

@@ -104,6 +104,10 @@ export const auth = betterAuth({
 		}
 	},
 	user: {
+		changeEmail: {
+			enabled: true,
+			updateEmailWithoutVerification: true
+		},
 		additionalFields: {
 			username: { type: 'string', required: false, input: false },
 			isBanned: { type: 'boolean', required: false, input: false },

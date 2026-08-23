@@ -1,17 +1,59 @@
 import { auth } from '$lib/auth';
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, battlepassSeason, battlepassTier, battlepassProgress, transaction } from '$lib/server/db/schema';
-import { eq, and, count } from 'drizzle-orm';
+import {
+	user, battlepassSeason, battlepassTier, battlepassProgress, transaction,
+	userPortfolio, coin, lotteryTicket, predictionBet
+} from '$lib/server/db/schema';
+import { eq, and, count, sql } from 'drizzle-orm';
 import { hasFlag } from '$lib/data/flags';
 import type { RequestHandler } from './$types';
+import { createNotification } from '$lib/server/notification';
+
+// Task types tracked as "since joining the battlepass" (delta vs baseline)
+const DELTA_TYPES = new Set(['trades', 'arcade_games']);
 
 async function getRawCounts(userId: number, userData: any) {
-	const [tradeRes] = await db.select({ count: count() }).from(transaction).where(eq(transaction.userId, userId));
+	const [tradeRes] = await db
+		.select({
+			trades: count(),
+			uniqueCoins: sql<string>`COUNT(DISTINCT ${transaction.coinId})`,
+			volume: sql<string>`COALESCE(SUM(CASE WHEN ${transaction.type} IN ('BUY','SELL') THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END), 0)`
+		})
+		.from(transaction)
+		.where(eq(transaction.userId, userId));
+
+	const [holdingsRes] = await db
+		.select({ cnt: count() })
+		.from(userPortfolio)
+		.where(and(eq(userPortfolio.userId, userId), sql`CAST(${userPortfolio.quantity} AS NUMERIC) > 0`));
+
+	const [holdingsValue] = await db
+		.select({ value: sql<string>`COALESCE(SUM(CAST(${userPortfolio.quantity} AS NUMERIC) * CAST(${coin.currentPrice} AS NUMERIC)), 0)` })
+		.from(userPortfolio)
+		.leftJoin(coin, eq(userPortfolio.coinId, coin.id))
+		.where(eq(userPortfolio.userId, userId));
+
+	const [lotteryRes] = await db
+		.select({ tickets: sql<string>`COALESCE(SUM(${lotteryTicket.quantity}), 0)` })
+		.from(lotteryTicket)
+		.where(eq(lotteryTicket.userId, userId));
+
+	const [predRes] = await db
+		.select({ cnt: count() })
+		.from(predictionBet)
+		.where(eq(predictionBet.userId, userId));
+
 	return {
-		trades: Number(tradeRes?.count ?? 0),
+		trades: Number(tradeRes?.trades ?? 0),
 		arcade_games: Number(userData?.totalArcadeGamesPlayed ?? 0),
-		login_streak: Number(userData?.loginStreak ?? 0)
+		login_streak: Number(userData?.loginStreak ?? 0),
+		unique_coins: Number(tradeRes?.uniqueCoins ?? 0),
+		volume_traded: Math.floor(Number(tradeRes?.volume ?? 0)),
+		holdings: Number(holdingsRes?.cnt ?? 0),
+		portfolio_value: Math.floor(Number(userData?.baseCurrencyBalance ?? 0)) + Math.floor(Number(holdingsValue?.value ?? 0)),
+		lottery_tickets: Number(lotteryRes?.tickets ?? 0),
+		predictions: Number(predRes?.cnt ?? 0)
 	};
 }
 
@@ -19,14 +61,23 @@ async function getRawCounts(userId: number, userData: any) {
 function getDeltaCounts(raw: Record<string, number>, progress: any) {
 	return {
 		trades: Math.max(0, raw.trades - (progress.baselineTrades ?? 0)),
-		arcade_games: Math.max(0, raw.arcade_games - (progress.baselineArcade ?? 0)),
-		login_streak: raw.login_streak // streak can't be delta-tracked, use raw
+		arcade_games: Math.max(0, raw.arcade_games - (progress.baselineArcade ?? 0))
 	};
 }
 
-function isTierComplete(tier: { taskType: string; taskTarget: number }, delta: Record<string, number>): boolean {
+// Merged counts map sent to the client: delta for repeatable activities, lifetime for milestones
+function getMergedCounts(raw: Record<string, number>, progress: any) {
+	const delta = getDeltaCounts(raw, progress);
+	return { ...raw, ...delta };
+}
+
+function isTierComplete(tier: { taskType: string; taskTarget: number }, counts: Record<string, number>): boolean {
 	if (tier.taskType === 'manual') return false;
-	return (delta[tier.taskType] ?? 0) >= tier.taskTarget;
+	return (counts[tier.taskType] ?? 0) >= tier.taskTarget;
+}
+
+function getCountsForVerification(raw: Record<string, number>, progress: any) {
+	return getMergedCounts(raw, progress);
 }
 
 export const GET: RequestHandler = async ({ request }) => {
@@ -73,7 +124,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		}).returning();
 	}
 
-	const delta = getDeltaCounts(raw, progress);
+	const delta = getMergedCounts(raw, progress);
 
 	// Level = number of consecutive free tiers completed
 	const freeTiers = tiers.filter(t => t.tier === 'free').sort((a, b) => a.level - b.level);
@@ -87,6 +138,15 @@ export const GET: RequestHandler = async ({ request }) => {
 	}
 
 	if (progress.level !== earnedLevel) {
+		if (earnedLevel > progress.level) {
+			await createNotification(
+				session.user.id.toString(),
+				'SYSTEM',
+				`Battlepass Level ${earnedLevel}!`,
+				`You reached Level ${earnedLevel}. New rewards are ready to claim!`,
+				'/battlepass'
+			);
+		}
 		[progress] = await db.update(battlepassProgress)
 			.set({ level: earnedLevel, xp: earnedLevel * 100 })
 			.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, season.id)))
@@ -125,11 +185,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			.limit(1);
 		if (!progress) return json({ error: 'Visit the battlepass page first' }, { status: 400 });
 
-		// Verify task completed using delta
+		// Verify task completed
 		if (tier.taskType !== 'manual') {
 			const raw = await getRawCounts(userId, userData);
-			const delta = getDeltaCounts(raw, progress);
-			if (!isTierComplete(tier, delta))
+			const counts = getCountsForVerification(raw, progress);
+			if (!isTierComplete(tier, counts))
 				return json({ error: `Task not complete yet: ${tier.taskDescription}` }, { status: 400 });
 		}
 
@@ -156,6 +216,14 @@ export const POST: RequestHandler = async ({ request }) => {
 				.set({ claimedTiers: JSON.stringify(claimed) })
 				.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, tier.seasonId)));
 		});
+
+		await createNotification(
+			session.user.id.toString(),
+			'SYSTEM',
+			'Battlepass Reward Claimed!',
+			`Level ${tier.level} ${tier.tier === 'premium' ? 'Premium ' : ''}reward: ${tier.rewardLabel}`,
+			'/battlepass'
+		);
 
 		return json({ success: true, reward: { type: tier.rewardType, amount: Number(tier.rewardAmount), label: tier.rewardLabel } });
 	}
