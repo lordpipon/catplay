@@ -128,6 +128,7 @@
 			<CardContent>
 				<div class="space-y-4">
 					<p class="text-muted-foreground text-sm">Created by <strong>lordpipon</strong></p>
+				<p class="text-muted-foreground text-sm">Original project by <strong>Facedev</strong></p>
 					<div class="flex flex-wrap gap-2">
 						<Button
 							variant="outline"
