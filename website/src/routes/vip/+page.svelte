@@ -16,7 +16,7 @@
 
 	const PERKS = [
 		{ icon: Ticket01Icon, title: 'Premium Battlepass', desc: 'Unlock all premium tier rewards each season' },
-		{ icon: CrownIcon, title: 'VIP Crown Badge', desc: 'Crown badge shown on your profile and sidebar' },
+		{ icon: CrownIcon, title: 'VIP Crown Badge', desc: 'Exclusive crown badge shown next to your name across Catplay — lasts as long as your VIP' },
 		{ icon: Coins01Icon, title: 'Arcade Bonus', desc: '5% extra on all arcade winnings (coming soon)' },
 		{ icon: DiscordIcon, title: 'Discord VIP Role', desc: 'Exclusive VIP role in the Catplay Discord server' },
 	];

@@ -469,6 +469,7 @@
 									<UserName
 										name={profileData.profile.name}
 										nameColor={profileData.profile.nameColor}
+										username={profileData.profile.username}
 									/>
 								</h1>
 								<ProfileBadges user={profileData.profile} />

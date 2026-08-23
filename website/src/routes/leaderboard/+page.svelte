@@ -349,7 +349,7 @@
 											<div class="flex flex-grow flex-col">
 												<div class="flex items-center gap-2">
 													<h4 class="max-w-[150px] truncate text-sm font-semibold sm:max-w-[200px]">
-														<UserName name={user.name} nameColor={user.nameColor} />
+														<UserName name={user.name} nameColor={user.nameColor} username={user.username} />
 													</h4>
 													<ProfileBadges {user} showId={true} size="sm" />
 												</div>

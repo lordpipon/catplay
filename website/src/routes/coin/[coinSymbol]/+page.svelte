@@ -639,7 +639,7 @@
 								<Avatar.Fallback>{coin.creatorName.charAt(0)}</Avatar.Fallback>
 							</Avatar.Root>
 							<span class="block truncate font-medium"
-								><UserName name={coin.creatorName} nameColor={coin.creatorNameColor} /> (@{coin.creatorUsername})</span
+								><UserName name={coin.creatorName} nameColor={coin.creatorNameColor} username={coin.creatorUsername} /> (@{coin.creatorUsername})</span
 							>
 						</HoverCard.Trigger>
 						<HoverCard.Content class="w-80" side="bottom" sideOffset={3}>

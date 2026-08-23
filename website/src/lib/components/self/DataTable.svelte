@@ -227,6 +227,7 @@
 													<UserName
 														name={cellData.name}
 														nameColor={cellData.nameColor}
+														username={cellData.username}
 														founderBadge={cellData.founderBadge}
 														class="text-sm font-medium"
 													/>
@@ -250,6 +251,7 @@
 											<UserName
 												name={cellData.name}
 												nameColor={cellData.nameColor}
+												username={cellData.username}
 												founderBadge={cellData.founderBadge}
 												class="text-sm font-medium"
 											/>

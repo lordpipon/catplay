@@ -277,7 +277,7 @@
 						<Avatar.Fallback>{question.creator.username.charAt(0)}</Avatar.Fallback>
 					</Avatar.Root>
 					<span
-						><UserName name={question.creator.name} nameColor={question.creator.nameColor} /> (@{question
+						><UserName name={question.creator.name} nameColor={question.creator.nameColor} username={question.creator.username} /> (@{question
 							.creator.username})</span
 					>
 				</HoverCard.Trigger>
@@ -630,6 +630,7 @@
 																<UserName
 																	name={bet.user?.name || 'Deleted User'}
 																	nameColor={bet.user?.nameColor}
+																	username={bet.user?.username}
 																/>
 															</div>
 															<div class="text-muted-foreground text-sm">

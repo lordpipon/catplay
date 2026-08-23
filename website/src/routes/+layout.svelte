@@ -13,6 +13,7 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { page } from '$app/state';
 	import { websocketController } from '$lib/stores/websocket';
+import { startVipUserPolling } from '$lib/stores/vip-users';
 	import { dev } from '$app/environment';
 	import { RenderScan } from 'svelte-render-scan';
 	import { _ } from 'svelte-i18n';
@@ -29,6 +30,7 @@
 
 	onMount(() => {
 		websocketController.connect();
+		startVipUserPolling();
 
 		console.log(
 			`%c                                       .--                    

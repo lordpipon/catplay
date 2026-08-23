@@ -292,6 +292,7 @@
 												><UserName
 													name={comment.userName}
 													nameColor={comment.userNameColor}
+													username={comment.userUsername}
 												/></span
 											>
 										</HoverCard.Trigger>

@@ -344,6 +344,7 @@
 													><UserName
 														name={question.creator.name}
 														nameColor={question.creator.nameColor}
+														username={question.creator.username}
 													/></span
 												>
 											</button>
