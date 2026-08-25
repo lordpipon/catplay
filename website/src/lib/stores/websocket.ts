@@ -52,6 +52,7 @@ const MAX_ALL_TRADES = 100;
 let socket: WebSocket | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let activeCoin: string = '@global';
+let userDataUnsub: (() => void) | null = null;
 
 // Stores
 export const liveTradesStore = writable<LiveTrade[]>([]);
@@ -322,6 +323,17 @@ function handleWebSocketMessage(event: MessageEvent): void {
 						},
 						duration: 6000
 					});
+				} else if (message.notificationType === 'BATTLEPASS') {
+					toast.success(message.title, {
+						description: message.message,
+						action: {
+							label: 'View',
+							onClick: () => {
+								goto('/battlepass');
+							}
+						},
+						duration: 5000
+					});
 				} else {
 					toast.success(message.title, {
 						description: message.message,
@@ -364,7 +376,8 @@ function connect(): void {
 		clearReconnectTimer();
 		subscribeToChannels();
 
-		USER_DATA.subscribe((user) => {
+		if (userDataUnsub) userDataUnsub();
+		userDataUnsub = USER_DATA.subscribe((user) => {
 			if (user?.id && isSocketConnected()) {
 				console.log('Setting user subscription for user:', user.id);
 				socket!.send(
@@ -375,7 +388,7 @@ function connect(): void {
 					})
 				);
 			}
-		})();
+		});
 	};
 
 	socket.onmessage = handleWebSocketMessage;
@@ -404,6 +417,11 @@ function setCoin(coinSymbol: string): void {
 
 function disconnect(): void {
 	clearReconnectTimer();
+
+	if (userDataUnsub) {
+		userDataUnsub();
+		userDataUnsub = null;
+	}
 
 	if (socket) {
 		socket.close();

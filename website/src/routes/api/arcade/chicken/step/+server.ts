@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { redis } from '$lib/server/redis';
 import { getSessionKey, chk_multiplier, type ChickenSession } from '$lib/server/games/chicken';
 import { checkAndAwardAchievements } from '$lib/server/achievements';
+import { publishArcadeActivity } from '$lib/server/arcade-activity';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -54,7 +55,6 @@ export const POST: RequestHandler = async ({ request }) => {
 						arcadeLosses: `${Number(row.arcadeLosses || 0) + game.betAmount}`,
 						arcadeWinStreak: 0,
 						totalArcadeGamesPlayed: (row.totalArcadeGamesPlayed || 0) + 1,
-						totalArcadeWagered: `${Number(row.totalArcadeWagered || 0) + game.betAmount}`,
 						updatedAt: new Date()
 					})
 					.where(eq(user.id, userId));
@@ -68,6 +68,8 @@ export const POST: RequestHandler = async ({ request }) => {
 				lanesCrossed: game.currentLane,
 				difficulty: game.difficulty
 			});
+
+			await publishArcadeActivity(userId, game.betAmount, false, 'chicken', 2500);
 
 			return json({
 				hitCar: true,
@@ -120,7 +122,6 @@ export const POST: RequestHandler = async ({ request }) => {
 						arcadeWinStreak: streak,
 						arcadeBestWinStreak: Math.max(streak, row.arcadeBestWinStreak || 0),
 						totalArcadeGamesPlayed: (row.totalArcadeGamesPlayed || 0) + 1,
-						totalArcadeWagered: `${Number(row.totalArcadeWagered || 0) + game.betAmount}`,
 						updatedAt: new Date()
 					})
 					.where(eq(user.id, userId));
@@ -134,6 +135,8 @@ export const POST: RequestHandler = async ({ request }) => {
 				lanesCrossed: game.currentLane,
 				difficulty: game.difficulty
 			});
+
+			await publishArcadeActivity(userId, payout, true, 'chicken', 2500);
 
 			return json({
 				hitCar: false,

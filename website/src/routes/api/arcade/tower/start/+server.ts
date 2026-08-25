@@ -43,7 +43,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const result = await db.transaction(async (tx) => {
 			const [row] = await tx
-				.select({ baseCurrencyBalance: user.baseCurrencyBalance })
+				.select({
+					baseCurrencyBalance: user.baseCurrencyBalance,
+					totalArcadeWagered: user.totalArcadeWagered
+				})
 				.from(user)
 				.where(eq(user.id, userId))
 				.for('update')
@@ -85,7 +88,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
 			await tx
 				.update(user)
-				.set({ baseCurrencyBalance: newBalance.toFixed(8), updatedAt: new Date() })
+				.set({
+					baseCurrencyBalance: newBalance.toFixed(8),
+					totalArcadeWagered: `${Number(row.totalArcadeWagered || 0) + bet}`,
+					updatedAt: new Date()
+				})
 				.where(eq(user.id, userId));
 
 			return { sessionToken: token, newBalance };

@@ -303,6 +303,9 @@ Provide your response in the specified JSON format with a precise ISO 8601 datet
 `;
 
 	try {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 20_000);
+
 		const completion = await openai.chat.completions.create({
 			model: MODELS.STANDARD,
 			messages: [
@@ -316,7 +319,7 @@ Provide your response in the specified JSON format with a precise ISO 8601 datet
 			temperature: 0.1,
 			max_tokens: 2048,
 			response_format: { type: 'json_object' }
-		});
+		}, { signal: controller.signal }).finally(() => clearTimeout(timeout));
 
 		const content = completion.choices[0]?.message?.content;
 		if (!content) {
@@ -331,6 +334,14 @@ Provide your response in the specified JSON format with a precise ISO 8601 datet
 		};
 	} catch (error) {
 		console.error('Question validation error:', error);
+		const isAbort = error instanceof Error && (error.name === 'AbortError' || error.message.includes('abort'));
+		if (isAbort) {
+			return {
+				isValid: true,
+				requiresWebSearch: false,
+				reason: 'AI timed out — approved by fallback'
+			};
+		}
 		return {
 			isValid: false,
 			requiresWebSearch: false,
@@ -393,6 +404,9 @@ Respond with JSON: { "resolution": boolean, "confidence": number (0-100), "reaso
 `;
 
 	try {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 30_000);
+
 		const completion = await openai.chat.completions.create({
 			model,
 			messages: [
@@ -406,7 +420,7 @@ Respond with JSON: { "resolution": boolean, "confidence": number (0-100), "reaso
 			temperature: 0.1,
 			max_tokens: 2048,
 			response_format: { type: 'json_object' }
-		});
+		}, { signal: controller.signal }).finally(() => clearTimeout(timeout));
 
 		const content = completion.choices[0]?.message?.content;
 		if (!content) {
@@ -416,6 +430,14 @@ Respond with JSON: { "resolution": boolean, "confidence": number (0-100), "reaso
 		return QuestionResolutionSchema.parse(extractJSON(content));
 	} catch (error) {
 		console.error('Question resolution error:', error);
+		const isAbort = error instanceof Error && (error.name === 'AbortError' || error.message.includes('abort'));
+		if (isAbort) {
+			return {
+				resolution: true,
+				confidence: 30,
+				reasoning: 'AI timed out — defaulting to YES with low confidence'
+			};
+		}
 		return {
 			resolution: false,
 			confidence: 0,

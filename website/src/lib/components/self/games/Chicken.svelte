@@ -12,6 +12,8 @@
 	import { toast } from 'svelte-sonner';
 	import { formatValue, playSound, showConfetti } from '$lib/utils';
 	import { haptic } from '$lib/stores/haptics';
+	import { fetchPortfolioSummary } from '$lib/stores/portfolio-data';
+	import { volumeSettings } from '$lib/stores/volume-settings';
 
 	interface StepResult {
 		hitCar: boolean;
@@ -123,7 +125,8 @@
 				revealedCars = data.allCarLanes ?? [];
 				balance = data.newBalance ?? balance;
 				onBalanceUpdate?.(balance);
-				playSound('lose');
+				fetchPortfolioSummary();
+				playSound('lose', $volumeSettings);
 				haptic.trigger('error');
 				toast.error('Splat! The chicken got hit.');
 				endGame();
@@ -133,14 +136,15 @@
 				revealedCars = [...revealedCars];
 				revealedCars[currentLane - 1] = false;
 				haptic.trigger('success');
-				playSound('click');
+				playSound('click', $volumeSettings);
 
 				if (data.status === 'won') {
 					balance = data.newBalance ?? balance;
 					onBalanceUpdate?.(balance);
+					fetchPortfolioSummary();
 					lastWin = { mult: currentMultiplier, payout: data.payout ?? 0 };
 					showConfetti(confetti);
-					playSound('win');
+					playSound('win', $volumeSettings);
 					toast.success(`Crossed the road! ${currentMultiplier.toFixed(2)}x`);
 					endGame();
 				}
@@ -167,10 +171,11 @@
 
 			balance = data.newBalance;
 			onBalanceUpdate?.(data.newBalance);
+			fetchPortfolioSummary();
 			lastWin = { mult: data.multiplier, payout: data.payout };
 			revealedCars = data.allCarLanes ?? [];
 			showConfetti(confetti);
-			playSound('win');
+			playSound('win', $volumeSettings);
 			haptic.trigger('success');
 			toast.success(`Cashed out ${data.multiplier.toFixed(2)}x — +${formatValue(data.payout - betAmount)}`);
 			endGame();

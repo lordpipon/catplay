@@ -7,7 +7,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { LegalHammerIcon, UserCheck01Icon, Cancel01Icon } from '@hugeicons/core-free-icons';
+	import { LegalHammerIcon, UserCheck01Icon, Cancel01Icon, CrownIcon } from '@hugeicons/core-free-icons';
 	import { toast } from 'svelte-sonner';
 
 	interface BannedUser {
@@ -23,6 +23,8 @@
 	let banDialogOpen = $state(false);
 	let usernameToAction = $state('');
 	let banReason = $state('');
+	let vipUsername = $state('');
+	let vipLoading = $state(false);
 
 	async function loadBannedUsers() {
 		loading = true;
@@ -95,6 +97,29 @@
 		banDialogOpen = true;
 	}
 
+	async function toggleVip() {
+		if (!vipUsername.trim()) return;
+		vipLoading = true;
+		try {
+			const res = await fetch('/api/admin/users/toggle-vip', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ username: vipUsername.trim() })
+			});
+			const data = await res.json();
+			if (res.ok) {
+				toast.success(`VIP ${data.isVip ? 'granted' : 'revoked'} for @${data.username} (30 days)`);
+				vipUsername = '';
+			} else {
+				toast.error(data.message || 'Failed to toggle VIP');
+			}
+		} catch {
+			toast.error('Failed to toggle VIP');
+		} finally {
+			vipLoading = false;
+		}
+	}
+
 	onMount(() => {
 		loadBannedUsers();
 	});
@@ -155,6 +180,30 @@
 					{/each}
 				</div>
 			{/if}
+		</Card.Content>
+	</Card.Root>
+
+	<Card.Root class="mt-6">
+		<Card.Header class="flex flex-row items-center justify-between">
+			<Card.Title class="flex items-center gap-2">
+				<HugeiconsIcon icon={CrownIcon} class="h-5 w-5 text-yellow-500" />
+				VIP Management
+			</Card.Title>
+		</Card.Header>
+		<Card.Content>
+			<div class="flex gap-3">
+				<Input
+					bind:value={vipUsername}
+					placeholder="Enter username"
+					class="flex-1"
+					onkeydown={(e) => { if (e.key === 'Enter') toggleVip(); }}
+				/>
+				<Button onclick={toggleVip} disabled={!vipUsername.trim() || vipLoading} variant="outline">
+					<HugeiconsIcon icon={CrownIcon} class="h-4 w-4" />
+					{vipLoading ? 'Toggling...' : 'Toggle VIP (30d)'}
+				</Button>
+			</div>
+			<p class="text-muted-foreground mt-2 text-xs">Grants or revokes 30-day VIP status. Works as a toggle.</p>
 		</Card.Content>
 	</Card.Root>
 </div>

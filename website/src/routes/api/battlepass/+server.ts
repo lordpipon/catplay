@@ -142,7 +142,7 @@ export const GET: RequestHandler = async ({ request }) => {
 	if (computedLevel > progress.level) {
 		await createNotification(
 			session.user.id.toString(),
-			'SYSTEM',
+			'BATTLEPASS',
 			`Battlepass Level ${computedLevel}!`,
 			`You reached Level ${computedLevel}. New rewards are ready to claim!`,
 			'/battlepass'
@@ -223,7 +223,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		await createNotification(
 			session.user.id.toString(),
-			'SYSTEM',
+			'BATTLEPASS',
 			'Battlepass Reward Claimed!',
 			`Level ${tier.level} ${tier.tier === 'premium' ? 'Premium ' : ''}reward: ${tier.rewardLabel}`,
 			'/battlepass'

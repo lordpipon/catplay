@@ -13,6 +13,7 @@
 	import HigherLower from '$lib/components/self/games/HigherLower.svelte';
 	import Roulette from '$lib/components/self/games/Roulette.svelte';
 	import Chicken from '$lib/components/self/games/Chicken.svelte';
+	import Poker from '$lib/components/self/games/Poker.svelte';
 	import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '$lib/components/ui/card';
 	import { arcadeActivityStore } from '$lib/stores/websocket';
 	import * as Avatar from '$lib/components/ui/avatar';
@@ -55,7 +56,8 @@
 		{ id: 'blackjack', label: 'Blackjack', icon: SpadesIcon },
 		{ id: 'higherlower', label: 'Higher/Lower', icon: CurvyUpDownDirectionIcon },
 		{ id: 'roulette', label: 'Roulette', icon: CircleIcon },
-		{ id: 'chicken', label: 'Chicken', icon: Target01Icon }
+		{ id: 'chicken', label: 'Chicken', icon: Target01Icon },
+		{ id: 'poker', label: 'Poker', icon: SpadesIcon }
 	];
 
 	let shouldSignIn = $state(false);
@@ -150,6 +152,8 @@
 				<Roulette bind:balance onBalanceUpdate={handleBalanceUpdate} />
 			{:else if activeGame === 'chicken'}
 				<Chicken bind:balance onBalanceUpdate={handleBalanceUpdate} />
+			{:else if activeGame === 'poker'}
+				<Poker bind:balance onBalanceUpdate={handleBalanceUpdate} />
 			{/if}
 
 			<!-- Live Arcade Activity Feed -->

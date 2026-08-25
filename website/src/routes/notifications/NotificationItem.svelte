@@ -1,6 +1,6 @@
 <script lang="ts">
 	interface Notification {
-		type: 'HOPIUM' | 'TRANSFER' | 'RUG_PULL' | 'SYSTEM';
+		type: 'HOPIUM' | 'TRANSFER' | 'RUG_PULL' | 'SYSTEM' | 'BATTLEPASS';
 		link?: string;
 		isRead: boolean;
 	}
@@ -21,7 +21,8 @@
 				HOPIUM: 'bg-blue-50/50 dark:bg-blue-950/10',
 				TRANSFER: 'bg-green-50/50 dark:bg-green-950/10',
 				RUG_PULL: 'bg-red-50/50 dark:bg-red-950/10',
-				SYSTEM: 'bg-purple-50/50 dark:bg-purple-950/10'
+				SYSTEM: 'bg-purple-50/50 dark:bg-purple-950/10',
+				BATTLEPASS: 'bg-yellow-50/50 dark:bg-yellow-950/10'
 			};
 			return `${base} ${colors[type as keyof typeof colors] || 'bg-muted/20'}`;
 		}

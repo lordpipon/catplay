@@ -60,7 +60,6 @@ export const POST: RequestHandler = async ({ request }) => {
 					arcadeWinStreak: streak,
 					arcadeBestWinStreak: Math.max(streak, row.arcadeBestWinStreak || 0),
 					totalArcadeGamesPlayed: (row.totalArcadeGamesPlayed || 0) + 1,
-					totalArcadeWagered: `${Number(row.totalArcadeWagered || 0) + game.betAmount}`,
 					updatedAt: new Date()
 				})
 				.where(eq(user.id, userId));
