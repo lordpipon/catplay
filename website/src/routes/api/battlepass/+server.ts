@@ -128,27 +128,27 @@ export const GET: RequestHandler = async ({ request }) => {
 
 	// Level = number of consecutive free tiers completed
 	const freeTiers = tiers.filter(t => t.tier === 'free').sort((a, b) => a.level - b.level);
-	let earnedLevel = 0;
+	let computedLevel = 0;
 	for (const tier of freeTiers) {
 		if (isTierComplete(tier, delta)) {
-			earnedLevel = tier.level;
+			computedLevel = tier.level;
 		} else {
 			break;
 		}
 	}
 
-	if (progress.level !== earnedLevel) {
-		if (earnedLevel > progress.level) {
-			await createNotification(
-				session.user.id.toString(),
-				'SYSTEM',
-				`Battlepass Level ${earnedLevel}!`,
-				`You reached Level ${earnedLevel}. New rewards are ready to claim!`,
-				'/battlepass'
-			);
-		}
+	// Levels never regress: absolute tasks (net worth, holdings, streak) fluctuate
+	// over time and already-claimed rewards must stay valid — only write increases
+	if (computedLevel > progress.level) {
+		await createNotification(
+			session.user.id.toString(),
+			'SYSTEM',
+			`Battlepass Level ${computedLevel}!`,
+			`You reached Level ${computedLevel}. New rewards are ready to claim!`,
+			'/battlepass'
+		);
 		[progress] = await db.update(battlepassProgress)
-			.set({ level: earnedLevel, xp: earnedLevel * 100 })
+			.set({ level: computedLevel, xp: computedLevel * 100 })
 			.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, season.id)))
 			.returning();
 	}
@@ -213,7 +213,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		await db.transaction(async (tx) => {
 			await tx.update(user).set(updateData).where(eq(user.id, userId));
 			await tx.update(battlepassProgress)
-				.set({ claimedTiers: JSON.stringify(claimed) })
+				.set({
+					claimedTiers: JSON.stringify(claimed),
+					level: Math.max(progress.level, tier.level),
+					xp: Math.max(progress.level, tier.level) * 100
+				})
 				.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, tier.seasonId)));
 		});
 
