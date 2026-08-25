@@ -15,8 +15,8 @@ const openai = new OpenAI({
 });
 
 const MODELS = {
-	STANDARD: 'google/gemini-2.5-flash',
-	WEB_SEARCH: 'google/gemini-2.5-flash:online'
+	STANDARD: 'nvidia/nemotron-3.5-lightning:free',
+	WEB_SEARCH: 'nvidia/nemotron-3.5-lightning:free'
 } as const;
 
 const VALIDATION_CRITERIA = `
@@ -42,6 +42,18 @@ const QuestionResolutionSchema = z.object({
 	confidence: z.number().min(0).max(100),
 	reasoning: z.string()
 });
+
+function extractJSON(content: string): unknown {
+	try { return JSON.parse(content); } catch {}
+	const codeBlock = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+	if (codeBlock) { try { return JSON.parse(codeBlock[1].trim()); } catch {} }
+	const braceStart = content.indexOf('{');
+	const braceEnd = content.lastIndexOf('}');
+	if (braceStart !== -1 && braceEnd > braceStart) {
+		try { return JSON.parse(content.slice(braceStart, braceEnd + 1)); } catch {}
+	}
+	throw new Error('No valid JSON found in AI response');
+}
 
 export interface QuestionValidationResult {
 	isValid: boolean;
@@ -297,11 +309,12 @@ Provide your response in the specified JSON format with a precise ISO 8601 datet
 				{
 					role: 'system',
 					content:
-						'You are a prediction market validator for Catplay, a crypto trading simulation platform. Always respond with valid JSON matching the requested schema.'
+						'You are a prediction market validator for Catplay, a crypto trading simulation platform. Think briefly then respond with ONLY valid JSON matching the requested schema — no other text.'
 				},
 				{ role: 'user', content: prompt }
 			],
 			temperature: 0.1,
+			max_tokens: 2048,
 			response_format: { type: 'json_object' }
 		});
 
@@ -310,7 +323,7 @@ Provide your response in the specified JSON format with a precise ISO 8601 datet
 			throw new Error('No response content from AI');
 		}
 
-		const parsed = QuestionValidationSchema.parse(JSON.parse(content));
+		const parsed = QuestionValidationSchema.parse(extractJSON(content));
 
 		return {
 			...parsed,
@@ -386,11 +399,12 @@ Respond with JSON: { "resolution": boolean, "confidence": number (0-100), "reaso
 				{
 					role: 'system',
 					content:
-						'You are a prediction market resolver for Catplay, a crypto trading simulation platform. Analyze the provided data carefully and resolve the question with a definitive YES or NO. Always respond with valid JSON matching the requested schema. Base your decision on factual data provided, not speculation.'
+						'You are a prediction market resolver for Catplay, a crypto trading simulation platform. Analyze the provided data carefully and resolve the question with a definitive YES or NO. Think briefly then respond with ONLY valid JSON matching the requested schema — no other text.'
 				},
 				{ role: 'user', content: prompt }
 			],
 			temperature: 0.1,
+			max_tokens: 2048,
 			response_format: { type: 'json_object' }
 		});
 
@@ -399,7 +413,7 @@ Respond with JSON: { "resolution": boolean, "confidence": number (0-100), "reaso
 			throw new Error('No response content from AI');
 		}
 
-		return QuestionResolutionSchema.parse(JSON.parse(content));
+		return QuestionResolutionSchema.parse(extractJSON(content));
 	} catch (error) {
 		console.error('Question resolution error:', error);
 		return {
