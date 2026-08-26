@@ -8,6 +8,8 @@
 	import { fetchPortfolioSummary } from '$lib/stores/portfolio-data';
 	import { haptic } from '$lib/stores/haptics';
 	import { DUCKS } from '$lib/arcade/duck-race-data';
+	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import { RubberDuckIcon, Award05Icon } from '@hugeicons/core-free-icons';
 
 	interface DuckRaceResult {
 		won: boolean;
@@ -128,9 +130,8 @@
 				duckPositions = DUCKS.map((_, i) => {
 					const target = finishPositions[i];
 					if (step >= steps) return target;
-					const speed = 0.5 + (1 / (finishPositions[i])) * 0.8;
-					const jitter = Math.sin(step * 0.3 + i * 1.7) * 0.3;
-					return Math.min(target, eased * target * speed + jitter * progress);
+					const jitter = Math.sin(step * 0.3 + i * 1.7) * 0.15;
+					return Math.min(target, eased * target + jitter * progress);
 				});
 
 				if (step >= steps) {
@@ -148,11 +149,18 @@
 		duckPositions = DUCKS.map(() => 0);
 		selectedDuck = null;
 	}
+
+	function duckProgress(pos: number): number {
+		return Math.max(0, Math.min(100, (pos / 5) * 100));
+	}
 </script>
 
 <Card>
 	<CardHeader>
-		<CardTitle>Duck Race</CardTitle>
+		<CardTitle class="flex items-center gap-2">
+			<HugeiconsIcon icon={RubberDuckIcon} class="h-5 w-5" />
+			Duck Race
+		</CardTitle>
 		<CardDescription>
 			Pick a duck and watch them race! Each duck has different odds — underdogs pay more.
 		</CardDescription>
@@ -172,8 +180,8 @@
 
 			<!-- Finish line -->
 			<div class="absolute right-3 top-0 bottom-0 w-0.5 bg-white/30"></div>
-			<div class="absolute right-1 top-0 bottom-0 flex flex-col justify-around text-[8px] text-white/30">
-				<span>🏆</span>
+			<div class="absolute right-0.5 top-0 bottom-0 flex flex-col justify-around">
+				<HugeiconsIcon icon={Award05Icon} class="h-3 w-3 text-yellow-400/40" />
 			</div>
 
 			<!-- Lanes -->
@@ -182,6 +190,7 @@
 				{@const isSelected = selectedDuck === duck.id}
 				{@const isWinner = result?.winnerDuck === duck.id}
 				{@const isLoser = result && result.winnerDuck !== duck.id}
+				{@const progress = duckProgress(pos)}
 				<div
 					class="relative mb-1 flex h-8 items-center rounded transition-colors {isSelected && racePhase === 'pick' ? 'bg-white/10' : ''} {isWinner ? 'bg-green-500/10' : ''}"
 				>
@@ -194,29 +203,27 @@
 						<span class="text-[10px] font-medium {isWinner ? 'text-green-400' : isLoser ? 'text-white/40' : ''}">{duck.name}</span>
 					</div>
 
-					<!-- Duck -->
-					<div
-						class="absolute z-20 transition-all"
-						style="left: calc(4rem + {Math.max(0, Math.min(100, (pos / 5) * 100))}% * 0.85);"
-					>
-						<span class="text-lg" class:animate-bounce={isRacing && isSelected}>
-							{#if isWinner && result}
-								🦆
-							{:else if isLoser}
-								🐥
-							{:else}
-								🦆
-							{/if}
-						</span>
-					</div>
-
 					<!-- Water trail -->
 					{#if pos > 0}
 						<div
 							class="absolute h-4 rounded-full opacity-20"
-							style="left: 4rem; width: {Math.max(0, (pos / 5) * 85)}%; background: {duck.color};"
+							style="left: 4rem; width: {progress * 0.85}%; background: {duck.color};"
 						></div>
 					{/if}
+
+					<!-- Duck -->
+					<div
+						class="absolute z-20 transition-all"
+						style="left: calc(4rem + {progress}% * 0.85);"
+					>
+						<div class="flex items-center {isRacing && isSelected ? 'animate-bounce' : ''}">
+							{#if isWinner && result}
+								<HugeiconsIcon icon={Award05Icon} class="h-5 w-5 text-yellow-400" />
+							{:else}
+								<HugeiconsIcon icon={RubberDuckIcon} class="h-4 w-4" style="color: {duck.color}" />
+							{/if}
+						</div>
+					</div>
 				</div>
 			{/each}
 		</div>
@@ -246,7 +253,7 @@
 							disabled={racePhase !== 'pick'}
 							onclick={() => selectDuck(duck.id)}
 						>
-							<span class="text-2xl">🦆</span>
+							<HugeiconsIcon icon={RubberDuckIcon} class="h-6 w-6" style="color: {duck.color}" />
 							<span class="text-xs font-medium">{duck.name}</span>
 							<span class="text-muted-foreground text-[10px]">{duck.multiplier}x</span>
 						</button>

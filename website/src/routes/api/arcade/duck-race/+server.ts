@@ -91,9 +91,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			await tx.update(user).set(updateData).where(eq(user.id, userId));
 
 			const finishPositions: number[] = [];
-			for (let i = 0; i < DUCKS.length; i++) {
-				finishPositions.push(i === winnerId ? 1 : 2 + Math.random() * 4);
+			const losers = DUCKS.map((_, i) => i).filter(i => i !== winnerId);
+			for (const idx of losers) {
+				finishPositions[idx] = 1 + Math.random() * 3.5;
 			}
+			finishPositions[winnerId] = 5;
 
 			return {
 				won: isWin,
