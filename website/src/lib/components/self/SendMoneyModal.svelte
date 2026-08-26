@@ -11,9 +11,11 @@
 		DollarCircleIcon,
 		Coins01Icon,
 		Loading03Icon,
-		SentIcon
+		SentIcon,
+		GemIcon
 	} from '@hugeicons/core-free-icons';
 	import { PORTFOLIO_DATA } from '$lib/stores/portfolio-data';
+	import { GEMS_BALANCE, fetchGemsBalance } from '$lib/stores/gems';
 	import { toast } from 'svelte-sonner';
 	import { haptic } from '$lib/stores/haptics';
 	import { _ } from 'svelte-i18n';
@@ -50,21 +52,27 @@
 			: 0
 	);
 
+	let gemsBalance = $derived($GEMS_BALANCE ?? 0);
+
 	let maxAmount = $derived(
-		transferType === 'CASH' ? userBalance : selectedCoinHolding ? selectedCoinHolding.quantity : 0
+		transferType === 'CASH' ? userBalance : transferType === 'GEMS' ? gemsBalance : selectedCoinHolding ? selectedCoinHolding.quantity : 0
 	);
 
 	let hasEnoughFunds = $derived(
 		transferType === 'CASH'
 			? numericAmount <= userBalance
-			: selectedCoinHolding
-				? numericAmount <= selectedCoinHolding.quantity
-				: false
+			: transferType === 'GEMS'
+				? numericAmount <= gemsBalance
+				: selectedCoinHolding
+					? numericAmount <= selectedCoinHolding.quantity
+					: false
 	);
 
 	let isWithinCashLimit = $derived(transferType === 'CASH' ? numericAmount >= 10 : true);
 
 	let isWithinCoinValueLimit = $derived(transferType === 'COIN' ? estimatedValue >= 10 : true);
+
+	let isWithinGemsLimit = $derived(transferType === 'GEMS' ? numericAmount >= 10 : true);
 
 	let noteCharCount = $derived([...note].length);
 	let isNoteValid = $derived(noteCharCount <= 500);
@@ -75,9 +83,10 @@
 			hasEnoughFunds &&
 			isWithinCashLimit &&
 			isWithinCoinValueLimit &&
+			isWithinGemsLimit &&
 			isNoteValid &&
 			!loading &&
-			(transferType === 'CASH' || selectedCoinSymbol.length > 0)
+			(transferType === 'CASH' || transferType === 'GEMS' || selectedCoinSymbol.length > 0)
 	);
 
 	function handleClose() {
@@ -100,7 +109,7 @@
 
 	function handleTypeChange(value: string) {
 		transferType = value;
-		if (value === 'CASH') {
+		if (value === 'CASH' || value === 'GEMS') {
 			selectedCoinSymbol = '';
 		} else if (coinHoldings.length > 0) {
 			selectedCoinSymbol = coinHoldings[0].symbol;
@@ -111,6 +120,9 @@
 	$effect(() => {
 		if (open && prefilledUsername) {
 			recipientUsername = prefilledUsername;
+		}
+		if (open) {
+			fetchGemsBalance();
 		}
 	});
 
@@ -145,8 +157,16 @@
 
 			if (result.type === 'CASH') {
 				haptic.trigger('success');
-				toast.success('Money sent successfully!', {
+				toast.success('Cash sent successfully!', {
 					description: `Sent $${result.amount.toFixed(2)} to @${result.recipient}`
+				});
+			} else if (result.type === 'GEMS') {
+				fetchGemsBalance();
+				haptic.trigger('success');
+				toast.success($_('portfolio.send_money.gems.4'), {
+					description: $_('portfolio.send_money.gems.5')
+						.replace('{{amount}}', result.amount.toString())
+						.replace('{{recipient}}', result.recipient)
 				});
 			} else {
 				const estimatedValueForToast = estimatedValue;
@@ -156,7 +176,7 @@
 						.replace('{{amount}}', result.amount.toFixed(6))
 						.replace('{{symbol}}', result.coinSymbol)
 						.replace('{{estimated}}', estimatedValueForToast.toFixed(2))
-						.replace('{{recipent}}', result.recipent) //`Sent ${result.amount.toFixed(6)} ${result.coinSymbol} (≈$${estimatedValueForToast.toFixed(2)}) to @${result.recipient}`
+						.replace('{{recipent}}', result.recipent)
 				});
 			}
 
@@ -174,7 +194,8 @@
 
 	let transferTypeOptions = [
 		{ value: 'CASH', label: $_('portfolio.send_money.type.1') },
-		{ value: 'COIN', label: $_('portfolio.send_money.type.2') }
+		{ value: 'COIN', label: $_('portfolio.send_money.type.2') },
+		{ value: 'GEMS', label: $_('portfolio.send_money.type.3') }
 	];
 
 	let currentTransferTypeLabel = $derived(
@@ -242,6 +263,12 @@
 									{$_('portfolio.send_money.type.2')}
 								</div>
 							</Select.Item>
+							<Select.Item value="GEMS" label="Gems" disabled={gemsBalance === 0}>
+								<div class="flex items-center gap-2">
+									<HugeiconsIcon icon={GemIcon} class="h-4 w-4" />
+									{$_('portfolio.send_money.type.3')}
+								</div>
+							</Select.Item>
 						</Select.Group>
 					</Select.Content>
 				</Select.Root>
@@ -277,13 +304,15 @@
 				<Label for="amount">
 					{transferType === 'CASH'
 						? $_('portfolio.send_money.cash.0')
-						: $_('portfolio.send_money.coins.1').replace('{{coinSymbol}}', selectedCoinSymbol)}
+						: transferType === 'GEMS'
+							? $_('portfolio.send_money.gems.0')
+							: $_('portfolio.send_money.coins.1').replace('{{coinSymbol}}', selectedCoinSymbol)}
 				</Label>
 				<div class="flex gap-2">
 					<Input
 						id="amount"
 						type="number"
-						step={transferType === 'CASH' ? '0.01' : '0.000001'}
+						step={transferType === 'CASH' ? '0.01' : '1'}
 						min="0"
 						bind:value={amount}
 						placeholder="0.00"
@@ -297,12 +326,14 @@
 					<p class="text-muted-foreground">
 						{transferType === 'CASH'
 							? $_('portfolio.send_money.cash.1').replace('{{balance}}', userBalance.toFixed(2))
-							: $_('portfolio.send_money.coins.2').replace(
-									'{{shares}}',
-									selectedCoinHolding
-										? `${selectedCoinHolding.quantity.toFixed(6)} ${selectedCoinSymbol}`
-										: '0'
-								)}
+							: transferType === 'GEMS'
+								? $_('portfolio.send_money.gems.1').replace('{{balance}}', gemsBalance.toString())
+								: $_('portfolio.send_money.coins.2').replace(
+										'{{shares}}',
+										selectedCoinHolding
+											? `${selectedCoinHolding.quantity.toFixed(6)} ${selectedCoinSymbol}`
+											: '0'
+									)}
 					</p>
 					{#if transferType === 'COIN' && estimatedValue > 0}
 						<p class="text-muted-foreground">
@@ -312,6 +343,8 @@
 				</div>
 				{#if transferType === 'CASH'}
 					<p class="text-muted-foreground text-xs">{$_('portfolio.send_money.cash.2')}</p>
+				{:else if transferType === 'GEMS'}
+					<p class="text-muted-foreground text-xs">{$_('portfolio.send_money.gems.2')}</p>
 				{:else if transferType === 'COIN'}
 					<p class="text-muted-foreground text-xs">{$_('portfolio.send_money.coins.3')}</p>
 				{/if}
@@ -342,11 +375,15 @@
 
 			{#if !hasEnoughFunds && hasValidAmount}
 				<Badge variant="destructive" class="text-xs">
-					Insufficient {transferType === 'CASH' ? 'funds' : 'coins'}
+					Insufficient {transferType === 'CASH' ? 'funds' : transferType === 'GEMS' ? 'gems' : 'coins'}
 				</Badge>
 			{:else if !isWithinCashLimit && hasValidAmount}
 				<Badge variant="destructive" class="text-xs">
 					{$_('portfolio.send_money.cash.3')}
+				</Badge>
+			{:else if !isWithinGemsLimit && hasValidAmount && transferType === 'GEMS'}
+				<Badge variant="destructive" class="text-xs">
+					{$_('portfolio.send_money.gems.2')}
 				</Badge>
 			{:else if !isWithinCoinValueLimit && hasValidAmount}
 				<Badge variant="destructive" class="text-xs">
@@ -354,7 +391,7 @@
 				</Badge>
 			{/if}
 
-			{#if hasValidAmount && hasEnoughFunds && hasValidRecipient && isWithinCashLimit && isWithinCoinValueLimit}
+			{#if hasValidAmount && hasEnoughFunds && hasValidRecipient && isWithinCashLimit && isWithinCoinValueLimit && isWithinGemsLimit}
 				<div class="bg-muted/50 rounded-lg p-3">
 					<div class="flex items-center justify-between">
 						<span class="text-sm font-medium">{$_('portfolio.send_money.youre_sending.0')}</span>
@@ -362,7 +399,9 @@
 							<span class="block font-bold">
 								{transferType === 'CASH'
 									? `$${numericAmount.toFixed(2)}`
-									: `${numericAmount.toFixed(6)} ${selectedCoinSymbol}`}
+									: transferType === 'GEMS'
+										? `${numericAmount} gems`
+										: `${numericAmount.toFixed(6)} ${selectedCoinSymbol}`}
 							</span>
 							{#if transferType === 'COIN' && estimatedValue > 0}
 								<span class="text-muted-foreground text-xs">

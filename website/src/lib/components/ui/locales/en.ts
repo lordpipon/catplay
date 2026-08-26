@@ -417,11 +417,11 @@ export default {
 		],
 
 		send_money: {
-			title: 'Send Money',
+			title: 'Send Currency',
 			send: ['Send', 'Sending...'],
-			description: 'Send cash or coins to another user',
+			description: 'Send cash, coins, or gems to another user',
 			recipient: ['Recipient', 'Enter username (without @)'],
-			type: ['Type', 'Cash ($)', 'Coins', 'Select transfer type'],
+			type: ['Type', 'Cash ($)', 'Coins', 'Gems', 'Select transfer type'],
 			cash: [
 				'Amount ($)',
 				'Available: ${{balance}}',
@@ -441,6 +441,14 @@ export default {
 				'Coins sent successfully!',
 				'Sent {{amount}} {{symbol}} (≈${{estimated}}) to @${{recipent}}',
 				'*{{symbol}} ({{quantity}}'
+			],
+			gems: [
+				'Amount',
+				'Available: {{balance}} gems',
+				'Minimum: 10 gems per transfer',
+				'Insufficient gems',
+				'Gems sent successfully!',
+				'Sent {{amount}} gems to @{{recipient}}'
 			],
 			note: ['Note', '(optional)', 'Add a reference note to this transfer...'],
 			youre_sending: ["You're sending:", '{{amount}} USD', 'To:']

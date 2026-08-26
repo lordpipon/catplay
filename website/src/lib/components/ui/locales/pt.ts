@@ -331,14 +331,15 @@ export default {
       "Pesquisar Moedas",
     ],
     send_money: {
-      title: "Enviar Dinheiro",
+      title: "Enviar Moeda",
       send: ["Enviar", "Enviando..."],
-      description: "Envie dinheiro ou moedas para outro usuário",
+      description: "Envie dinheiro, moedas ou gems para outro usuário",
       recipient: ["Destinatário", "Digite o username (sem o @)"],
       type: [
         "Tipo",
         "Dinheiro ($)",
         "Moedas",
+        "Gems",
         "Selecione o tipo de transferência",
       ],
       cash: [
@@ -359,6 +360,14 @@ export default {
         "Moedas não suficientes",
         "Moedas enviadas com sucesso!",
         "Enviou {{amount}} {{symbol}} (≈${{estimated}}) para @${{recipent}}",
+      ],
+      gems: [
+        "Quantidade",
+        "Disponível: {{balance}} gems",
+        "Mínimo: 10 gems por transferência",
+        "Gems insuficientes",
+        "Gems enviadas com sucesso!",
+        "Enviou {{amount}} gems para @{{recipient}}"
       ],
       note: [
         "Anotação",
