@@ -35,9 +35,7 @@ export async function GET({ url }) {
 			.orderBy(desc(transaction.timestamp))
 			.limit(limit);
 
-		const formattedTrades = trades
-			.filter((trade) => trade.currencyType !== 'gems')
-			.map((trade) => ({
+		const formattedTrades = trades.map((trade) => ({
 			type: trade.type as 'BUY' | 'SELL' | 'TRANSFER_IN' | 'TRANSFER_OUT',
 			username: trade.username,
 			userImage: trade.userImage,

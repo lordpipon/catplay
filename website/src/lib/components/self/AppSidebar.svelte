@@ -37,6 +37,7 @@
 		Key01Icon,
 		Joystick04Icon,
 		ShoppingBasket01Icon,
+		GemIcon,
 		Award05Icon,
 		ArrowDown01Icon,
 		UserGroupIcon,
@@ -60,6 +61,7 @@
 	import { UNREAD_COUNT, fetchNotifications } from '$lib/stores/notifications';
 	import { NEW_ACHIEVEMENTS_COUNT } from '$lib/stores/achievements';
 	import { ARCADE_STATS, fetchArcadeStats } from '$lib/stores/arcade-stats';
+	import { GEMS_BALANCE, fetchGemsBalance } from '$lib/stores/gems';
 	import { _ } from 'svelte-i18n';
 	import { hasFlag, UserFlags } from '$lib/data/flags';
 
@@ -251,9 +253,13 @@
 									<div class="flex items-center gap-1">
 										{#if trade.type === 'TRANSFER_IN' || trade.type === 'TRANSFER_OUT'}
 											<span class="text-foreground font-medium">
-												{formatValue(trade.totalValue)}
+												{#if trade.coinSymbol === 'gems'}
+													{trade.totalValue} gems
+												{:else}
+													{formatValue(trade.totalValue)}
+												{/if}
 											</span>
-											{#if trade.amount > 0}<span class="text-muted-foreground">*{trade.coinSymbol}</span>{/if}
+											{#if trade.amount > 0 && trade.coinSymbol !== 'gems'}<span class="text-muted-foreground">*{trade.coinSymbol}</span>{/if}
 											<span class="text-muted-foreground">{trade.type === 'TRANSFER_IN' ? 'to' : 'from'}</span>
 										{:else}
 											<span class="text-foreground font-medium">{formatValue(trade.totalValue)}</span>
@@ -301,6 +307,15 @@
 									<span>Coins:</span>
 									<span class="font-mono" style="color: #00ff0d">${formatCurrency($PORTFOLIO_SUMMARY.totalCoinValue)}</span>
 								</div>
+								{#if $GEMS_BALANCE !== null}
+									<div class="flex justify-between">
+										<span>Gems:</span>
+										<span class="font-mono" style="color: #ca00ff">
+											<HugeiconsIcon icon={GemIcon} size={14} strokeWidth={2} style="display: inline; vertical-align: middle; color: #ca00ff" />
+											{$GEMS_BALANCE.toLocaleString()}
+										</span>
+									</div>
+								{/if}
 							</div>
 						{/if}
 					</div>

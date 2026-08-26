@@ -212,8 +212,6 @@ function handleTradeMessage(message: any): void {
 		timestamp: Number(message.data.timestamp)
 	};
 
-	if (trade.coinSymbol === 'gems' || trade.coinSymbol === 'GEMS') return;
-
 	if (message.type === 'live-trade') {
 		liveTradesStore.update((trades) => [trade, ...trades.slice(0, MAX_LIVE_TRADES - 1)]);
 	} else if (message.type === 'all-trades') {
