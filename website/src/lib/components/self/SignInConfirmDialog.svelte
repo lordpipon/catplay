@@ -12,6 +12,8 @@
 	import { page } from '$app/state';
 	import { _ } from 'svelte-i18n';
 	import { toast } from 'svelte-sonner';
+	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import { ViewIcon, ViewOffIcon } from '@hugeicons/core-free-icons';
 
 	let { open = $bindable(false) } = $props<{
 		open?: boolean;
@@ -20,6 +22,8 @@
 	let mode = $state<'signin' | 'signup'>('signin');
 	let email = $state('');
 	let password = $state('');
+	let confirmPassword = $state('');
+	let showPassword = $state(false);
 	let loading = $state(false);
 
 	const callbackURL = `${page.url.pathname}?signIn=1`;
@@ -34,6 +38,12 @@
 	async function onEmailSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		if (!email.trim() || !password || loading) return;
+
+		if (mode === 'signup' && password !== confirmPassword) {
+			toast.error('Passwords do not match');
+			return;
+		}
+
 		loading = true;
 		try {
 			if (mode === 'signup') {
@@ -76,14 +86,14 @@
 					<Button
 						type="button"
 						variant={mode === 'signin' ? 'default' : 'outline'}
-						onclick={() => (mode = 'signin')}
+						onclick={() => { mode = 'signin'; confirmPassword = ''; }}
 					>
 						Sign In
 					</Button>
 					<Button
 						type="button"
 						variant={mode === 'signup' ? 'default' : 'outline'}
-						onclick={() => (mode = 'signup')}
+						onclick={() => { mode = 'signup'; confirmPassword = ''; }}
 					>
 						Create Account
 					</Button>
@@ -95,15 +105,50 @@
 					bind:value={email}
 					autocomplete="email"
 				/>
-				<Input
-					type="password"
-					required
-					minlength={8}
-					placeholder="Password{mode === 'signup' ? ' (min. 8 characters)' : ''}"
-					bind:value={password}
-					autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
-				/>
-				<Button type="submit" disabled={loading}>
+				<div class="relative">
+					<Input
+						type={showPassword ? 'text' : 'password'}
+						required
+						minlength={8}
+						placeholder="Password{mode === 'signup' ? ' (min. 8 characters)' : ''}"
+						bind:value={password}
+						autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
+						class="pr-10"
+					/>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+						onclick={() => (showPassword = !showPassword)}
+						tabindex={-1}
+					>
+						<HugeiconsIcon icon={showPassword ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+					</button>
+				</div>
+				{#if mode === 'signup'}
+					<div class="relative">
+						<Input
+							type={showPassword ? 'text' : 'password'}
+							required
+							minlength={8}
+							placeholder="Confirm password"
+							bind:value={confirmPassword}
+							autocomplete="new-password"
+							class="pr-10"
+						/>
+						<button
+							type="button"
+							class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+							onclick={() => (showPassword = !showPassword)}
+							tabindex={-1}
+						>
+							<HugeiconsIcon icon={showPassword ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+						</button>
+					</div>
+					{#if confirmPassword && password !== confirmPassword}
+						<p class="text-destructive text-xs">Passwords do not match</p>
+					{/if}
+				{/if}
+				<Button type="submit" disabled={loading || (mode === 'signup' && password !== confirmPassword)}>
 					{loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
 				</Button>
 			</form>

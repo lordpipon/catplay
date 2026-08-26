@@ -1,6 +1,6 @@
 <img style="width: 128px; height: 128px" src="website/static/catplay.png" /><h1 style="font-size: 48px"><a href="https://catplay.org">catplay.org</a> - the fake crypto simulator.</h1>
 
-[Privacy Policy](https://catplay.dpdns.org/legal/privacy) | [Terms of Service](https://catplay.dpdns.org/legal/terms) | [License](LICENSE) | [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)
+[Privacy Policy](https://catplay.org/legal/privacy) | [Terms of Service](https://catplay.org/legal/terms) | [License](LICENSE) | [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)
 
 ## About
 

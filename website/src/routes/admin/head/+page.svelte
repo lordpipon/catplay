@@ -13,7 +13,8 @@
 		StarIcon,
 		Notification01Icon,
 		Delete01Icon,
-		GemIcon
+		GemIcon,
+		CrownIcon
 	} from '@hugeicons/core-free-icons';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
@@ -31,6 +32,10 @@
 	let gemsUsername = $state('');
 	let gemsAmount = $state('');
 	let gemsLoading = $state(false);
+
+	// VIP State
+	let vipUsername = $state('');
+	let vipLoading = $state(false);
 
 	// Prestige State
 	let prestigeUsername = $state('');
@@ -136,6 +141,29 @@
 			if (response.ok) { toast.success((await response.json()).message); gemsUsername = ''; gemsAmount = ''; }
 			else toast.error((await response.json()).message || 'Failed');
 		} catch { toast.error('Server error'); } finally { gemsLoading = false; }
+	}
+
+	async function toggleVip() {
+		if (!vipUsername.trim()) return;
+		vipLoading = true;
+		try {
+			const res = await fetch('/api/admin/users/toggle-vip', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ username: vipUsername.trim() })
+			});
+			const data = await res.json();
+			if (res.ok) {
+				toast.success(`VIP ${data.isVip ? 'granted' : 'revoked'} for @${data.username} (30 days)`);
+				vipUsername = '';
+			} else {
+				toast.error(data.message || 'Failed to toggle VIP');
+			}
+		} catch {
+			toast.error('Failed to toggle VIP');
+		} finally {
+			vipLoading = false;
+		}
 	}
 
 	async function updatePrestige() {
@@ -374,6 +402,30 @@
 							<Button onclick={() => updateGems('add')} disabled={!gemsUsername.trim() || !gemsAmount || gemsLoading} class="flex-1 bg-green-500 text-white hover:bg-green-600">+ Add</Button>
 							<Button variant="destructive" onclick={() => updateGems('subtract')} disabled={!gemsUsername.trim() || !gemsAmount || gemsLoading} class="flex-1">- Subtract</Button>
 						</div>
+					</div>
+				</Card.Content>
+			</Card.Root>
+
+			<Card.Root class="mt-4">
+				<Card.Header>
+					<Card.Title class="flex items-center gap-2">
+						<HugeiconsIcon icon={CrownIcon} class="h-5 w-5 text-yellow-500" />
+						VIP Management
+					</Card.Title>
+					<Card.Description>Grant or revoke 30-day VIP status.</Card.Description>
+				</Card.Header>
+				<Card.Content>
+					<div class="max-w-md flex gap-3">
+						<Input
+							bind:value={vipUsername}
+							placeholder="Username (without @)"
+							class="flex-1"
+							onkeydown={(e) => { if (e.key === 'Enter') toggleVip(); }}
+						/>
+						<Button onclick={toggleVip} disabled={!vipUsername.trim() || vipLoading} class="bg-yellow-500 text-white hover:bg-yellow-600">
+							<HugeiconsIcon icon={CrownIcon} class="h-4 w-4" />
+							{vipLoading ? 'Toggling...' : 'Toggle VIP'}
+						</Button>
 					</div>
 				</Card.Content>
 			</Card.Root>

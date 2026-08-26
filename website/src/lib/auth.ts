@@ -23,6 +23,8 @@ export const auth = betterAuth({
 
 	trustedOrigins: [
 		publicEnv.PUBLIC_BETTER_AUTH_URL,
+		'https://catplay.org',
+		'http://catplay.org',
 		'https://catplay.dpdns.org',
 		'http://catplay.dpdns.org',
 		'http://localhost:5173',

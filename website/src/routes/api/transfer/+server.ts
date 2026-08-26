@@ -12,7 +12,7 @@ import { redis } from '$lib/server/redis';
 
 interface TransferRequest {
 	recipientUsername: string;
-	type: 'CASH' | 'COIN' | 'GEMS';
+	type: 'CASH' | 'COIN';
 	amount: number;
 	coinSymbol?: string;
 	note?: string;
@@ -60,10 +60,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			throw error(400, 'Cash transfers require a minimum of $10.00');
 		}
 
-		if (type === 'GEMS' && amount < 10) {
-			throw error(400, 'Gem transfers require a minimum of 10 gems');
-		}
-
 		if (type === 'COIN' && !coinSymbol) {
 			throw error(400, 'Coin symbol required for coin transfers');
 		}
@@ -82,11 +78,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
 			const [senderData] = await tx
 				.select({
-					id: user.id,
-					username: user.username,
-					baseCurrencyBalance: user.baseCurrencyBalance,
-					gems: user.gems,
-					flags: user.flags
+				id: user.id,
+				username: user.username,
+				baseCurrencyBalance: user.baseCurrencyBalance,
+				flags: user.flags
 				})
 				.from(user)
 				.where(eq(user.id, senderId))
@@ -216,110 +211,6 @@ export const POST: RequestHandler = async ({ request }) => {
 					recipient: recipientData.username,
 					newBalance: senderBalance - amount
 				});
-			} else if (type === 'GEMS') {
-				const senderGems = senderData.gems ?? 0;
-				if (senderGems < amount) {
-					throw error(
-						400,
-						`Insufficient gems. You have ${senderGems} but trying to send ${amount}`
-					);
-				}
-
-				const [recipientDataFull] = await tx
-					.select({ gems: user.gems })
-					.from(user)
-					.where(eq(user.id, recipientData.id))
-					.for('update')
-					.limit(1);
-
-				const recipientGems = recipientDataFull?.gems ?? 0;
-
-				await tx
-					.update(user)
-					.set({
-						gems: senderGems - amount,
-						updatedAt: new Date()
-					})
-					.where(eq(user.id, senderId));
-
-				await tx
-					.update(user)
-					.set({
-						gems: recipientGems + amount,
-						updatedAt: new Date()
-					})
-					.where(eq(user.id, recipientData.id));
-
-				await tx.insert(transaction).values({
-					userId: senderId,
-					coinId: ledgerCoinId,
-					type: 'TRANSFER_OUT',
-					quantity: '0',
-					pricePerCoin: '1',
-					totalBaseCurrencyAmount: amount.toString(),
-					timestamp: new Date(),
-					senderUserId: senderId,
-					recipientUserId: recipientData.id,
-					note: sanitizedNote
-				});
-
-				await tx.insert(transaction).values({
-					userId: recipientData.id,
-					coinId: ledgerCoinId,
-					type: 'TRANSFER_IN',
-					quantity: '0',
-					pricePerCoin: '1',
-					totalBaseCurrencyAmount: amount.toString(),
-					timestamp: new Date(),
-					senderUserId: senderId,
-					recipientUserId: recipientData.id,
-					note: sanitizedNote
-				});
-
-				(async () => {
-					await createNotification(
-						recipientData.id.toString(),
-						'TRANSFER',
-						'Gems received!',
-						`You received ${amount} gems from @${senderData.username}${sanitizedNote ? `\n\n"${sanitizedNote}"` : ''}`,
-						`/user/${senderData.id}`
-					);
-				})();
-
-				checkAndAwardAchievements(senderId, ['social']);
-
-				const senderUsername = senderData.username;
-
-				(async () => {
-					await redis.publish(
-						'trades:all',
-						JSON.stringify({
-							type: 'all-trades',
-							data: {
-								type: 'TRANSFER_OUT',
-								username: senderUsername,
-								userImage: null,
-								amount: amount,
-								coinSymbol: 'gems',
-								coinName: 'Gems',
-								coinIcon: null,
-								totalValue: amount,
-								price: 1,
-								timestamp: Date.now(),
-								userId: senderId.toString(),
-								recipientUsername: recipientData.username
-							}
-						})
-					);
-				})();
-
-				return json({
-					success: true,
-					type: 'GEMS',
-					amount,
-					recipient: recipientData.username,
-					newGems: senderGems - amount
-				});
 			} else {
 				const normalizedSymbol = coinSymbol!.toUpperCase();
 
@@ -420,8 +311,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					timestamp: new Date(),
 					senderUserId: senderId,
 					recipientUserId: recipientData.id,
-					note: sanitizedNote,
-					currencyType: 'gems'
+					note: sanitizedNote
 				});
 
 				await tx.insert(transaction).values({
@@ -434,8 +324,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					timestamp: new Date(),
 					senderUserId: senderId,
 					recipientUserId: recipientData.id,
-					note: sanitizedNote,
-					currencyType: 'gems'
+					note: sanitizedNote
 				});
 
 				(async () => {
