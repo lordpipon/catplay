@@ -19,3 +19,4 @@ website/build/
 website/.svelte-kit/
 website/node_modules/
 websocket/dist/
+test-results/
