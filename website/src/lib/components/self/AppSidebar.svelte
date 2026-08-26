@@ -3,6 +3,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import {
@@ -397,6 +398,11 @@
 	{:else}
 		<Sidebar.Footer>
 			<Sidebar.Menu>
+				<Sidebar.MenuItem>
+					<Button class="w-full" onclick={() => { shouldSignIn = true; setOpenMobile(false); }}>
+						Sign In
+					</Button>
+				</Sidebar.MenuItem>
 				<Sidebar.MenuItem>
 					<Sidebar.MenuButton>
 						{#snippet child({ props }: { props: MenuButtonProps })}
