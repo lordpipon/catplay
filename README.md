@@ -1,4 +1,4 @@
-<img style="width: 128px; height: 128px" src="website/static/catplay.png" /><h1 style="font-size: 48px"><a href="https://catplay.dpdns.org">catplay.dpdns.org</a> - the fake crypto simulator.</h1>
+<img style="width: 128px; height: 128px" src="website/static/catplay.png" /><h1 style="font-size: 48px"><a href="https://catplay.org">catplay.org</a> - the fake crypto simulator.</h1>
 
 [Privacy Policy](https://catplay.dpdns.org/legal/privacy) | [Terms of Service](https://catplay.dpdns.org/legal/terms) | [License](LICENSE) | [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)
 
@@ -13,20 +13,6 @@ Catplay is a realistic cryptocurrency trading simulator that lets you experience
 - View a Treemap graph of the entire market
 - Compete on leaderboards, earn achievements, battlepass seasons, prestige & VIP
 - Public REST API with keys for building custom scripts & bots
-
-## What's New — Catplay 2.0
-Full rebrand from Rugplay/Dingoplay with a bunch of fixes and new features:
-
-- **New game: Chicken Road** — step-based crossy-road gamble with Easy/Medium/Hard/Extreme difficulties, per-lane multipliers and cash-out anytime (`/arcade`)
-- **Roulette wheel fix** — winning number now always lands centered under the pointer (previously drifted onto neighboring segments)
-- **Coin deletion** — coin creators can delete their own coin from its page (with confirmation dialog); remaining pool liquidity is refunded to the creator
-- **Instant avatar updates** — profile & coin images now use versioned upload keys, so new pictures show up immediately everywhere
-- **Optional timezone** in settings + new default bio for fresh accounts
-- **Head admin panel** — give/remove gems from users, in addition to balance management
-- **VIP** reworked to 1,000 gems/month with a cleaned-up perk list
-- **API docs** now include copy-paste JavaScript / Python / curl examples for custom market scripts
-- All emoji UI replaced with proper icons, light/dark theme accents fixed (black accents in light mode, white in dark)
-- Docker/compose fully renamed to `catplay-*`; fresh one-command deploy via `build.sh`
 
 ---
 ![Preview 2](github_assets/preview2.png)
