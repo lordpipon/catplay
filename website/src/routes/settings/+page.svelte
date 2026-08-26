@@ -300,6 +300,34 @@
 	let secStatus = $state<{ hasPassword: boolean; googleLinked: boolean; canUnlinkGoogle: boolean } | null>(
 		null
 	);
+	const DISPOSABLE_DOMAINS = new Set([
+		'guerrillamail.com','tempmail.com','temp-mail.org','mailinator.com',
+		'maildrop.cc','yopmail.com','trashmail.com','trashmail.net',
+		'discard.email','sharklasers.com','guerrillamail.de',
+		'guerrillamail.net','guerrillamail.org','tempail.com',
+		'tempmailer.com','tempmailer.de','tempinbox.com',
+		'getnada.com','fakeinbox.com','dispostable.com',
+		'10minutemail.com','tempmailo.com','mailnesia.com',
+		'mohmal.com','trashmail.me','temp-mail.io',
+		'emailondeck.com','33mail.com','guerrillamailblock.com',
+		'dropmail.me','discardmail.com','tempmail.net',
+		'mailsac.com','mailsac.me','mailnull.com',
+		'jetable.com','jetable.fr.nf','jetable.net',
+		'spam4.me','spamgourmet.com','spamgourmet.net',
+		'mailcatch.com','trashemail.de','wegwerfmail.de',
+		'wegwerfmail.net','wegwerfmail.org','wegwerfemail.de',
+		'zerobounce.net','kickmail.com','meltmail.com',
+		'nospamthanks.info','mytempemail.com','mytempmail.com',
+		'spoofmail.de','safetymail.info','filzmail.com',
+		'rejectmail.com','spambox.us','spambox.info',
+		'spamhole.com','spamcero.com','spamex.com',
+		'freemails.cf','freemails.ga','freemails.ml',
+		'emailspam.cf','emailspam.ga','emailspam.ml',
+		'emailtemporanea.com','emailtemporario.com.br',
+		'coldemail.info','mailsiphon.com','mailshell.com',
+		'mailslite.com','notsharingmy.info','chacuo.net',
+		'redpe.spacetechnology.co','tradermail.info'
+	]);
 	let newEmail = $state('');
 	let currentPassword = $state('');
 	let newPassword = $state('');
@@ -383,6 +411,11 @@
 		if (secBusy) return;
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
 			toast.error('Enter a valid email address');
+			return;
+		}
+		const domain = newEmail.split('@')[1]?.toLowerCase();
+		if (domain && DISPOSABLE_DOMAINS.has(domain)) {
+			toast.error('Please use a real email address');
 			return;
 		}
 		secBusy = true;
