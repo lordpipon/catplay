@@ -23,7 +23,8 @@ export async function GET({ url }) {
 				totalValue: transaction.totalBaseCurrencyAmount,
 				price: transaction.pricePerCoin,
 				timestamp: transaction.timestamp,
-				userId: transaction.userId
+				userId: transaction.userId,
+				currencyType: transaction.currencyType
 			})
 			.from(transaction)
 			.innerJoin(user, eq(user.id, transaction.userId))
@@ -39,7 +40,7 @@ export async function GET({ url }) {
 			username: trade.username,
 			userImage: trade.userImage,
 			amount: Number(trade.amount),
-			coinSymbol: trade.coinSymbol,
+			coinSymbol: trade.currencyType === 'gems' ? 'gems' : trade.coinSymbol,
 			coinName: trade.coinName,
 			coinIcon: trade.coinIcon,
 			totalValue: Number(trade.totalValue),

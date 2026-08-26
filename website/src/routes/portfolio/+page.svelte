@@ -232,7 +232,8 @@
 			key: 'totalBaseCurrencyAmount',
 			label: $_('global.amount'),
 			class: 'w-[12%] min-w-[70px] md:w-[10%] font-mono text-sm font-medium',
-			render: (value: any) => formatValue(value)
+			render: (value: any, row: any) =>
+				row.currencyType === 'gems' ? `${value} gems` : formatValue(value)
 		},
 		{
 			key: 'timestamp',

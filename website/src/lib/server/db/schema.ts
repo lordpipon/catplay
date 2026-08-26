@@ -233,7 +233,8 @@ export const transaction = pgTable(
 			onDelete: 'set null'
 		}),
 		senderUserId: integer('sender_user_id').references(() => user.id, { onDelete: 'set null' }),
-		note: varchar('note', { length: 500 })
+		note: varchar('note', { length: 500 }),
+		currencyType: varchar('currency_type', { length: 20 }).default('cash')
 	},
 	(table) => {
 		return {

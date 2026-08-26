@@ -8,6 +8,7 @@ import { formatValue } from '$lib/utils';
 import { checkAndAwardAchievements } from '$lib/server/achievements';
 import type { RequestHandler } from './$types';
 import { hasFlag } from '$lib/data/flags';
+import { redis } from '$lib/server/redis';
 
 interface TransferRequest {
 	recipientUsername: string;
@@ -183,6 +184,31 @@ export const POST: RequestHandler = async ({ request }) => {
 
 				checkAndAwardAchievements(senderId, ['social']);
 
+				const senderUsername = senderData.username;
+
+				(async () => {
+					await redis.publish(
+						'trades:all',
+						JSON.stringify({
+							type: 'all-trades',
+							data: {
+								type: 'TRANSFER_OUT',
+								username: senderUsername,
+								userImage: null,
+								amount: 0,
+								coinSymbol: '$',
+								coinName: 'Cash',
+								coinIcon: null,
+								totalValue: amount,
+								price: 1,
+								timestamp: Date.now(),
+								userId: senderId.toString(),
+								recipientUsername: recipientData.username
+							}
+						})
+					);
+				})();
+
 				return json({
 					success: true,
 					type: 'CASH',
@@ -230,7 +256,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					type: 'TRANSFER_OUT',
 					quantity: '0',
 					pricePerCoin: '1',
-					totalBaseCurrencyAmount: '0',
+					totalBaseCurrencyAmount: amount.toString(),
 					timestamp: new Date(),
 					senderUserId: senderId,
 					recipientUserId: recipientData.id,
@@ -243,7 +269,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					type: 'TRANSFER_IN',
 					quantity: '0',
 					pricePerCoin: '1',
-					totalBaseCurrencyAmount: '0',
+					totalBaseCurrencyAmount: amount.toString(),
 					timestamp: new Date(),
 					senderUserId: senderId,
 					recipientUserId: recipientData.id,
@@ -261,6 +287,31 @@ export const POST: RequestHandler = async ({ request }) => {
 				})();
 
 				checkAndAwardAchievements(senderId, ['social']);
+
+				const senderUsername = senderData.username;
+
+				(async () => {
+					await redis.publish(
+						'trades:all',
+						JSON.stringify({
+							type: 'all-trades',
+							data: {
+								type: 'TRANSFER_OUT',
+								username: senderUsername,
+								userImage: null,
+								amount: amount,
+								coinSymbol: 'gems',
+								coinName: 'Gems',
+								coinIcon: null,
+								totalValue: amount,
+								price: 1,
+								timestamp: Date.now(),
+								userId: senderId.toString(),
+								recipientUsername: recipientData.username
+							}
+						})
+					);
+				})();
 
 				return json({
 					success: true,
@@ -361,28 +412,30 @@ export const POST: RequestHandler = async ({ request }) => {
 
 				await tx.insert(transaction).values({
 					userId: senderId,
-					coinId: coinData.id,
+					coinId: ledgerCoinId,
 					type: 'TRANSFER_OUT',
-					quantity: amount.toString(),
-					pricePerCoin: coinPrice.toString(),
-					totalBaseCurrencyAmount: totalValue.toString(),
+					quantity: '0',
+					pricePerCoin: '1',
+					totalBaseCurrencyAmount: amount.toString(),
 					timestamp: new Date(),
 					senderUserId: senderId,
 					recipientUserId: recipientData.id,
-					note: sanitizedNote
+					note: sanitizedNote,
+					currencyType: 'gems'
 				});
 
 				await tx.insert(transaction).values({
 					userId: recipientData.id,
-					coinId: coinData.id,
+					coinId: ledgerCoinId,
 					type: 'TRANSFER_IN',
-					quantity: amount.toString(),
-					pricePerCoin: coinPrice.toString(),
-					totalBaseCurrencyAmount: totalValue.toString(),
+					quantity: '0',
+					pricePerCoin: '1',
+					totalBaseCurrencyAmount: amount.toString(),
 					timestamp: new Date(),
 					senderUserId: senderId,
 					recipientUserId: recipientData.id,
-					note: sanitizedNote
+					note: sanitizedNote,
+					currencyType: 'gems'
 				});
 
 				(async () => {
@@ -396,6 +449,31 @@ export const POST: RequestHandler = async ({ request }) => {
 				})();
 
 				checkAndAwardAchievements(senderId, ['social']);
+
+				const senderUsername = senderData.username;
+
+				(async () => {
+					await redis.publish(
+						'trades:all',
+						JSON.stringify({
+							type: 'all-trades',
+							data: {
+								type: 'TRANSFER_OUT',
+								username: senderUsername,
+								userImage: null,
+								amount: amount,
+								coinSymbol: coinData.symbol,
+								coinName: coinData.name,
+								coinIcon: null,
+								totalValue: totalValue,
+								price: coinPrice,
+								timestamp: Date.now(),
+								userId: senderId.toString(),
+								recipientUsername: recipientData.username
+							}
+						})
+					);
+				})();
 
 				return json({
 					success: true,

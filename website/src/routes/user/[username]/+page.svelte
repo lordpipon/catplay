@@ -396,7 +396,8 @@
 			key: 'totalBaseCurrencyAmount',
 			label: 'Amount',
 			class: 'w-[12%] min-w-[70px] md:w-[10%] font-mono text-sm font-medium',
-			render: (v: any) => formatValue(parseFloat(v))
+			render: (v: any, row: any) =>
+				row.currencyType === 'gems' ? `${v} gems` : formatValue(parseFloat(v))
 		},
 		{
 			key: 'timestamp',

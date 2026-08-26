@@ -95,34 +95,41 @@
 							<div class="flex items-center gap-3 sm:gap-4">
 								<div class="min-w-0 flex-1">
 									<div class="flex flex-wrap items-center gap-1 sm:gap-2">
-										{#if trade.type === 'TRANSFER_IN' || trade.type === 'TRANSFER_OUT'}
-											{#if trade.amount > 0}
-												<button
-													onclick={() => handleCoinClick(trade.coinSymbol, trade)}
-													class="flex cursor-pointer items-center gap-1.5 transition-opacity hover:underline hover:opacity-80"
-												>
-													<CoinIcon
-														icon={trade.coinIcon}
-														symbol={trade.coinSymbol}
-														name={trade.coinName || trade.coinSymbol}
-														size={5}
-														class="sm:size-6"
-													/>
-													<span class="font-mono text-sm font-medium sm:text-base">
-														{formatQuantity(trade.amount)} *{trade.coinSymbol}
-													</span>
-												</button>
-												<span class="text-muted-foreground text-xs sm:text-sm">
-													{trade.type === 'TRANSFER_IN' ? 'received by' : 'sent by'}
-												</span>
-											{:else}
+								{#if trade.type === 'TRANSFER_IN' || trade.type === 'TRANSFER_OUT'}
+										{#if trade.coinSymbol === 'gems'}
+											<span class="font-mono text-sm font-medium sm:text-base">
+												{trade.amount} gems
+											</span>
+											<span class="text-muted-foreground text-xs sm:text-sm">
+												{trade.type === 'TRANSFER_IN' ? 'received by' : 'sent by'}
+											</span>
+										{:else if trade.amount > 0}
+											<button
+												onclick={() => handleCoinClick(trade.coinSymbol, trade)}
+												class="flex cursor-pointer items-center gap-1.5 transition-opacity hover:underline hover:opacity-80"
+											>
+												<CoinIcon
+													icon={trade.coinIcon}
+													symbol={trade.coinSymbol}
+													name={trade.coinName || trade.coinSymbol}
+													size={5}
+													class="sm:size-6"
+												/>
 												<span class="font-mono text-sm font-medium sm:text-base">
-													{formatValue(trade.totalValue)}
+													{formatQuantity(trade.amount)} *{trade.coinSymbol}
 												</span>
-												<span class="text-muted-foreground text-xs sm:text-sm">
-													{trade.type === 'TRANSFER_IN' ? 'received by' : 'sent by'}
-												</span>
-											{/if}
+											</button>
+											<span class="text-muted-foreground text-xs sm:text-sm">
+												{trade.type === 'TRANSFER_IN' ? 'received by' : 'sent by'}
+											</span>
+										{:else}
+											<span class="font-mono text-sm font-medium sm:text-base">
+												{formatValue(trade.totalValue)}
+											</span>
+											<span class="text-muted-foreground text-xs sm:text-sm">
+												{trade.type === 'TRANSFER_IN' ? 'received by' : 'sent by'}
+											</span>
+										{/if}
 										{:else}
 											<button
 												onclick={() => handleCoinClick(trade.coinSymbol, trade)}
@@ -187,7 +194,11 @@
 											{trade.type === 'TRANSFER_IN' ? 'RECEIVED' : 'SENT'}
 										</span>
 										<span class="text-muted-foreground">|</span>
-										<span>{formatValue(trade.totalValue)}</span>
+										{#if trade.coinSymbol === 'gems'}
+											<span>{trade.amount} gems</span>
+										{:else}
+											<span>{formatValue(trade.totalValue)}</span>
+										{/if}
 									{:else if trade.type === 'BUY'}
 										<HugeiconsIcon
 											icon={TradeUpIcon}

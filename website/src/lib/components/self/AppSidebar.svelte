@@ -251,11 +251,18 @@
 								</div>
 								<div class="flex-1 truncate">
 									<div class="flex items-center gap-1">
-										<span class="text-foreground font-medium">{formatValue(trade.totalValue)}</span>
 										{#if trade.type === 'TRANSFER_IN' || trade.type === 'TRANSFER_OUT'}
-											{#if trade.amount > 0}<span class="text-muted-foreground">*{trade.coinSymbol}</span>{/if}
+											<span class="text-foreground font-medium">
+												{#if trade.coinSymbol === 'gems'}
+													{trade.totalValue} gems
+												{:else}
+													{formatValue(trade.totalValue)}
+												{/if}
+											</span>
+											{#if trade.amount > 0 && trade.coinSymbol !== 'gems'}<span class="text-muted-foreground">*{trade.coinSymbol}</span>{/if}
 											<span class="text-muted-foreground">{trade.type === 'TRANSFER_IN' ? 'to' : 'from'}</span>
 										{:else}
+											<span class="text-foreground font-medium">{formatValue(trade.totalValue)}</span>
 											<span class="text-muted-foreground">*{trade.coinSymbol}</span>
 											<span class="text-muted-foreground">by</span>
 										{/if}

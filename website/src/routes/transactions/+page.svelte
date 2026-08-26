@@ -500,9 +500,11 @@
 								</Table.Cell>
 								<!-- Total -->
 								<Table.Cell class="font-mono font-medium">
-									{tx.type === 'TRANSFER_IN' || tx.type === 'BUY' ? '+' : '-'}{formatValue(
-										tx.totalBaseCurrencyAmount
-									)}
+									{tx.type === 'TRANSFER_IN' || tx.type === 'BUY' ? '+' : '-'}{#if tx.currencyType === 'gems'}
+										{tx.totalBaseCurrencyAmount} gems
+									{:else}
+										{formatValue(tx.totalBaseCurrencyAmount)}
+									{/if}
 								</Table.Cell>
 								<!-- Date -->
 								<Table.Cell class="text-muted-foreground text-sm">

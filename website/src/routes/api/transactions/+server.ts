@@ -87,6 +87,7 @@ export async function GET({ request, url }) {
 			recipientUserId: transaction.recipientUserId,
 			senderUserId: transaction.senderUserId,
 			note: transaction.note,
+			currencyType: transaction.currencyType,
 			coin: {
 				id: coin.id,
 				name: coin.name,
@@ -129,6 +130,7 @@ export async function GET({ request, url }) {
 			quantity: Number(tx.quantity),
 			pricePerCoin: Number(tx.pricePerCoin),
 			totalBaseCurrencyAmount: Number(tx.totalBaseCurrencyAmount),
+			currencyType: tx.currencyType ?? 'cash',
 			note: tx.note ?? null,
 			isTransfer,
 			isIncoming,
