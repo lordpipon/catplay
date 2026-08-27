@@ -168,8 +168,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			.from(friendship)
 			.where(
 				or(
-					and(eq(friendship.user1Id, userId), eq(friendship.user2Id, targetUserId)),
-					and(eq(friendship.user1Id, targetUserId), eq(friendship.user2Id, userId))
+					and(eq(friendship.requesterId, userId), eq(friendship.addresseeId, targetUserId)),
+					and(eq(friendship.requesterId, targetUserId), eq(friendship.addresseeId, userId))
 				)
 			)
 			.limit(1);
