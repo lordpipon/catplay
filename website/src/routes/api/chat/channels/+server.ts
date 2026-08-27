@@ -67,35 +67,53 @@ export const GET: RequestHandler = async ({ request }) => {
 		fetchedUsers.forEach((u) => usersInfo.set(u.id, u));
 	}
 
-	// Fetch or create Global Public Chat (dedupe by ensuring only one exists)
-	const globalChats = await db
-		.select()
-		.from(chatChannel)
-		.where(
-			and(
-				eq(chatChannel.type, 'DIRECT'),
-				eq(chatChannel.user1Id, null),
-				eq(chatChannel.user2Id, null)
+	// Fetch or create Global Public Chat (only one can ever exist via unique index)
+	let globalChat = (
+		await db
+			.select()
+			.from(chatChannel)
+			.where(
+				and(
+					eq(chatChannel.type, 'DIRECT'),
+					eq(chatChannel.user1Id, null),
+					eq(chatChannel.user2Id, null)
+				)
 			)
-		)
-		.orderBy(chatChannel.id)
-		.limit(1);
-
-	let globalChat = globalChats[0];
+			.orderBy(chatChannel.id)
+			.limit(1)
+	)[0];
 
 	if (!globalChat) {
-		const newGlobal = await db
+		// Try to insert, ignoring race-condition duplicates (unique partial index on chat_channel)
+		const inserted = await db
 			.insert(chatChannel)
 			.values({
 				type: 'DIRECT',
 				user1Id: null,
 				user2Id: null
 			})
+			.onConflictDoNothing()
 			.returning();
-		globalChat = newGlobal[0];
+
+		globalChat =
+			inserted[0] ||
+			(
+				await db
+					.select()
+					.from(chatChannel)
+					.where(
+						and(
+							eq(chatChannel.type, 'DIRECT'),
+							eq(chatChannel.user1Id, null),
+							eq(chatChannel.user2Id, null)
+						)
+					)
+					.orderBy(chatChannel.id)
+					.limit(1)
+			)[0];
 	}
 
-	// Remove any stale duplicate global chat rows (race condition guard)
+	// Safety net: remove any stale duplicate global chat rows that predate the unique index
 	if (globalChat) {
 		await db
 			.delete(chatChannel)

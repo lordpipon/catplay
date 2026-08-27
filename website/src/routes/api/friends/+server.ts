@@ -3,6 +3,7 @@ import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { user, friendship } from '$lib/server/db/schema';
 import { eq, or, and } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { RequestHandler } from './$types';
 import { createNotification } from '$lib/server/notification';
 
@@ -11,6 +12,9 @@ export const GET: RequestHandler = async ({ request }) => {
 	if (!session?.user) throw error(401, 'Not authenticated');
 	const userId = Number(session.user.id);
 
+	const requester = alias(user, 'requester');
+	const addressee = alias(user, 'addressee');
+
 	const rows = await db
 		.select({
 			id: friendship.id,
@@ -18,12 +22,16 @@ export const GET: RequestHandler = async ({ request }) => {
 			addresseeId: friendship.addresseeId,
 			status: friendship.status,
 			createdAt: friendship.createdAt,
-			requesterName: user.name,
-			requesterUsername: user.username,
-			requesterImage: user.image
+			requesterName: requester.name,
+			requesterUsername: requester.username,
+			requesterImage: requester.image,
+			addresseeName: addressee.name,
+			addresseeUsername: addressee.username,
+			addresseeImage: addressee.image
 		})
 		.from(friendship)
-		.leftJoin(user, eq(user.id, friendship.requesterId))
+		.leftJoin(requester, eq(requester.id, friendship.requesterId))
+		.leftJoin(addressee, eq(addressee.id, friendship.addresseeId))
 		.where(or(eq(friendship.requesterId, userId), eq(friendship.addresseeId, userId)));
 
 	return json(rows);

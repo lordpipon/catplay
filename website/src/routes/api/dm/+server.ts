@@ -62,7 +62,7 @@ export const GET: RequestHandler = async ({ request, url }) => {
 		ORDER BY other_user, dm.created_at DESC
 	`);
 
-	return json(conversations.rows);
+	return json(conversations?.rows ?? []);
 };
 
 export const POST: RequestHandler = async ({ request }) => {

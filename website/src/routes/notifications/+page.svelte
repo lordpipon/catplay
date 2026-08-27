@@ -160,66 +160,72 @@
 		</div>
 	</header>
 
-	{#if $USER_DATA && friendRequests.length > 0}
-		<Card.Root class="mb-6">
-			<Card.Header>
-				<Card.Title class="flex items-center gap-2">
-					<HugeiconsIcon icon={UserGroupIcon} class="h-5 w-5 text-sky-500" />
-					Friend Requests ({friendRequests.length})
-				</Card.Title>
-				<Card.Description>Accept or decline pending friend requests</Card.Description>
-			</Card.Header>
-			<Card.Content>
-				<div class="space-y-3">
-					{#each friendRequests as request}
-						<div class="flex items-center gap-3 rounded-lg border p-3">
-							<Avatar.Root class="h-10 w-10 shrink-0 border">
-								{#if request.requesterImage}
-									<Avatar.Image src={getPublicUrl(request.requesterImage)} />
-								{/if}
-								<Avatar.Fallback class="text-sm"
-									>{request.requesterName?.charAt(0)?.toUpperCase() || '?'}</Avatar.Fallback
-								>
-							</Avatar.Root>
-							<div class="min-w-0 flex-1">
-								<button
-									class="hover:underline truncate text-sm font-medium"
-									onclick={() => goto(`/user/${request.requesterUsername}`)}
-								>
-									@{request.requesterUsername}
-								</button>
-								<div class="text-muted-foreground truncate text-xs">
-									{request.requesterName}
+	<div class="{friendRequests.length > 0 ? 'grid gap-6 lg:grid-cols-[320px_1fr]' : ''}">
+		{#if $USER_DATA && friendRequests.length > 0}
+			<div class="self-start">
+				<Card.Root>
+					<Card.Header>
+						<Card.Title class="flex items-center gap-2">
+							<HugeiconsIcon icon={UserGroupIcon} class="h-5 w-5 text-sky-500" />
+							Friend Requests ({friendRequests.length})
+						</Card.Title>
+						<Card.Description>Accept or decline pending friend requests</Card.Description>
+					</Card.Header>
+					<Card.Content>
+						<div class="space-y-3">
+							{#each friendRequests as request}
+								<div class="rounded-lg border p-3">
+									<div class="flex items-center gap-3">
+										<Avatar.Root class="h-10 w-10 shrink-0 border">
+											{#if request.requesterImage}
+												<Avatar.Image src={getPublicUrl(request.requesterImage)} />
+											{/if}
+											<Avatar.Fallback class="text-sm"
+												>{request.requesterName?.charAt(0)?.toUpperCase() || '?'}</Avatar.Fallback
+											>
+										</Avatar.Root>
+										<div class="min-w-0 flex-1">
+											<button
+												class="hover:underline block truncate text-sm font-medium"
+												onclick={() => goto(`/user/${request.requesterUsername}`)}
+											>
+												@{request.requesterUsername}
+											</button>
+											<div class="text-muted-foreground truncate text-xs">
+												{request.requesterName}
+											</div>
+										</div>
+									</div>
+									<div class="mt-3 flex gap-2">
+										<Button
+											size="sm"
+											class="flex-1"
+											onclick={() => respondToRequest(request.id, request.requesterId, 'accept')}
+											disabled={requestLoading}
+										>
+											<HugeiconsIcon icon={CheckmarkCircle01Icon} class="mr-1 h-4 w-4" />
+											Accept
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											class="flex-1 text-muted-foreground"
+											onclick={() => respondToRequest(request.id, request.requesterId, 'decline')}
+											disabled={requestLoading}
+										>
+											<HugeiconsIcon icon={Cancel01Icon} class="mr-1 h-4 w-4" />
+											Decline
+										</Button>
+									</div>
 								</div>
-							</div>
-							<div class="flex shrink-0 gap-2">
-								<Button
-									size="sm"
-									onclick={() => respondToRequest(request.id, request.requesterId, 'accept')}
-									disabled={requestLoading}
-								>
-									<HugeiconsIcon icon={CheckmarkCircle01Icon} class="mr-1 h-4 w-4" />
-									Accept
-								</Button>
-								<Button
-									size="sm"
-									variant="outline"
-									onclick={() => respondToRequest(request.id, request.requesterId, 'decline')}
-									disabled={requestLoading}
-									class="text-muted-foreground"
-								>
-									<HugeiconsIcon icon={Cancel01Icon} class="mr-1 h-4 w-4" />
-									Decline
-								</Button>
-							</div>
+							{/each}
 						</div>
-					{/each}
-				</div>
-			</Card.Content>
-		</Card.Root>
-	{/if}
+					</Card.Content>
+				</Card.Root>
+			</div>
+		{/if}
 
-	<Card.Root class="gap-1">
+		<Card.Root class="gap-1">
 		<Card.Content>
 			{#if !$USER_DATA}
 				<div class="py-12 text-center">
@@ -309,4 +315,5 @@
 			{/if}
 		</Card.Content>
 	</Card.Root>
+	</div>
 </div>

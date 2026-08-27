@@ -43,7 +43,8 @@
 		UserGroupIcon,
 		Money01Icon,
 		News01Icon,
-		Message01Icon
+		Message01Icon,
+		UserAdd01Icon
 	} from '@hugeicons/core-free-icons';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -83,6 +84,7 @@
 			{ title: $_('page_names.create_coin'), url: '/coin/create', icon: Coins02Icon },
 			{ title: $_('page_names.notifications'), url: '/notifications', icon: Notification01Icon },
 			{ title: 'Messages', url: '/chat', icon: Message01Icon },
+			{ title: 'Friends', url: '/friends', icon: UserAdd01Icon },
 			{ title: 'VIP', url: '/vip', icon: CrownIcon },
 			{ title: 'Battlepass', url: '/battlepass', icon: Award05Icon },
 			{ title: 'Updates', url: '/updates', icon: News01Icon },

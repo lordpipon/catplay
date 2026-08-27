@@ -14,7 +14,8 @@
 
 	interface Friend {
 		id: number; requesterId: number; addresseeId: number; status: string;
-		requesterName: string; requesterUsername: string; requesterImage: string;
+		requesterName: string; requesterUsername: string; requesterImage: string | null;
+		addresseeName: string; addresseeUsername: string; addresseeImage: string | null;
 	}
 
 	let friends = $state<Friend[]>([]);
@@ -24,19 +25,22 @@
 	let activeTab = $state<'friends'|'pending'|'messages'>('friends');
 	let dmThreads = $state<any[]>([]);
 
-	const myId = $derived($USER_DATA?.id);
+	const myId = $derived(Number($USER_DATA?.id));
 
 	let accepted = $derived(friends.filter(f => f.status === 'accepted'));
 	let incoming = $derived(friends.filter(f => f.status === 'pending' && f.addresseeId === myId));
 	let outgoing = $derived(friends.filter(f => f.status === 'pending' && f.requesterId === myId));
 
 	function getFriendUser(f: Friend) {
-		const isRequester = f.requesterId === myId;
-		return {
-			name: isRequester ? f.requesterName : f.requesterName, // same field for now
-			username: f.requesterUsername,
-			image: f.requesterImage
-		};
+		// "other" is the user who is NOT me
+		const otherIsRequester = f.requesterId !== myId;
+		return otherIsRequester
+			? { name: f.requesterName, username: f.requesterUsername, image: f.requesterImage }
+			: { name: f.addresseeName, username: f.addresseeUsername, image: f.addresseeImage };
+	}
+
+	function getOtherId(f: Friend) {
+		return f.requesterId === myId ? f.addresseeId : f.requesterId;
 	}
 
 	onMount(async () => {
@@ -48,12 +52,16 @@
 
 	async function loadFriends() {
 		const res = await fetch('/api/friends');
-		if (res.ok) friends = await res.json();
+		if (res.ok) {
+			try { friends = await res.json(); } catch { friends = []; }
+		}
 	}
 
 	async function loadDMs() {
 		const res = await fetch('/api/dm');
-		if (res.ok) dmThreads = await res.json();
+		if (res.ok) {
+			try { dmThreads = await res.json(); } catch { dmThreads = []; }
+		}
 	}
 
 	async function sendRequest() {
@@ -128,17 +136,18 @@
 		{:else}
 			<div class="space-y-2">
 				{#each accepted as f}
+					{@const other = getFriendUser(f)}
 					<Card.Root>
 						<Card.Content class="p-3 flex items-center gap-3">
 							<Avatar.Root class="h-9 w-9">
-								<Avatar.Image src={getPublicUrl(f.requesterImage)} alt={f.requesterName} />
-								<Avatar.Fallback>{f.requesterName?.[0]}</Avatar.Fallback>
+								<Avatar.Image src={getPublicUrl(other.image)} alt={other.name} />
+								<Avatar.Fallback>{other.name?.[0]}</Avatar.Fallback>
 							</Avatar.Root>
 							<div class="flex-1">
-								<p class="font-medium text-sm">{f.requesterName}</p>
-								<p class="text-muted-foreground text-xs">@{f.requesterUsername}</p>
+								<p class="font-medium text-sm">{other.name}</p>
+								<p class="text-muted-foreground text-xs">@{other.username}</p>
 							</div>
-							<Button size="sm" variant="ghost" onclick={() => goto(`/friends?dm=${f.requesterId === myId ? f.addresseeId : f.requesterId}`)}>
+							<Button size="sm" variant="ghost" onclick={() => goto(`/friends?dm=${getOtherId(f)}`)}>
 								<HugeiconsIcon icon={Message01Icon} class="h-4 w-4" />
 							</Button>
 							<Button size="sm" variant="ghost" class="text-red-400 hover:text-red-300" onclick={() => respond(f, 'remove')}>
@@ -155,15 +164,16 @@
 			{#if incoming.length > 0}
 				<h3 class="text-sm font-medium text-muted-foreground">Incoming Requests</h3>
 				{#each incoming as f}
+					{@const other = getFriendUser(f)}
 					<Card.Root>
 						<Card.Content class="p-3 flex items-center gap-3">
 							<Avatar.Root class="h-9 w-9">
-								<Avatar.Image src={getPublicUrl(f.requesterImage)} />
-								<Avatar.Fallback>{f.requesterName?.[0]}</Avatar.Fallback>
+								<Avatar.Image src={getPublicUrl(other.image)} />
+								<Avatar.Fallback>{other.name?.[0]}</Avatar.Fallback>
 							</Avatar.Root>
 							<div class="flex-1">
-								<p class="font-medium text-sm">{f.requesterName}</p>
-								<p class="text-muted-foreground text-xs">@{f.requesterUsername}</p>
+								<p class="font-medium text-sm">{other.name}</p>
+								<p class="text-muted-foreground text-xs">@{other.username}</p>
 							</div>
 							<Button size="sm" class="bg-green-600 hover:bg-green-500" onclick={() => respond(f, 'accept')}>
 								<HugeiconsIcon icon={UserCheck01Icon} class="h-4 w-4 mr-1" />Accept
@@ -178,10 +188,17 @@
 			{#if outgoing.length > 0}
 				<h3 class="text-sm font-medium text-muted-foreground">Sent Requests</h3>
 				{#each outgoing as f}
+					{@const other = getFriendUser(f)}
 					<Card.Root>
 						<Card.Content class="p-3 flex items-center gap-3">
-							<Avatar.Root class="h-9 w-9"><Avatar.Fallback>?</Avatar.Fallback></Avatar.Root>
-							<div class="flex-1"><p class="text-sm text-muted-foreground">Waiting for response...</p></div>
+							<Avatar.Root class="h-9 w-9">
+								<Avatar.Image src={getPublicUrl(other.image)} />
+								<Avatar.Fallback>{other.name?.[0]}</Avatar.Fallback>
+							</Avatar.Root>
+							<div class="flex-1">
+								<p class="font-medium text-sm">{other.name}</p>
+								<p class="text-muted-foreground text-xs">@{other.username} · waiting for response</p>
+							</div>
 							<Button size="sm" variant="ghost" class="text-red-400" onclick={() => respond(f, 'remove')}>Cancel</Button>
 						</Card.Content>
 					</Card.Root>
