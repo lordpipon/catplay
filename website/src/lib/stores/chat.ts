@@ -13,6 +13,27 @@ export interface ChatMessage {
 // Map of channelId to array of messages
 export const CHAT_MESSAGES = writable<Record<number, ChatMessage[]>>({});
 
+// Unread counts per channel
+export const CHAT_UNREAD = writable<Record<number, number>>({});
+export const CHAT_UNREAD_COUNT = writable<number>(0);
+
+export function incrementChatUnread(channelId: number) {
+	CHAT_UNREAD.update((counts) => ({
+		...counts,
+		[channelId]: (counts[channelId] || 0) + 1
+	}));
+	CHAT_UNREAD_COUNT.update((c) => c + 1);
+}
+
+export function clearChatUnread(channelId: number) {
+	CHAT_UNREAD.update((counts) => {
+		const next = { ...counts };
+		delete next[channelId];
+		return next;
+	});
+	CHAT_UNREAD_COUNT.set(0);
+}
+
 export function addChatMessage(message: ChatMessage) {
 	CHAT_MESSAGES.update((messages) => {
 		const channelMessages = messages[message.channelId] || [];

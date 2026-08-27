@@ -8,7 +8,7 @@
 	import * as Avatar from '$lib/components/ui/avatar';
 	import { toast } from 'svelte-sonner';
 	import { USER_DATA } from '$lib/stores/user-data';
-	import { CHAT_MESSAGES, setChatMessages } from '$lib/stores/chat';
+	import { CHAT_MESSAGES, setChatMessages, CHAT_UNREAD, clearChatUnread } from '$lib/stores/chat';
 	import { getPublicUrl, formatDate } from '$lib/utils';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
@@ -87,6 +87,7 @@
 	async function selectChannel(id: number) {
 		currentTab = 'chats';
 		activeChannelId = id;
+		clearChatUnread(id);
 		const url = new URL(window.location.href);
 		url.searchParams.set('channel', id.toString());
 		window.history.replaceState({}, '', url);
@@ -156,8 +157,8 @@
 </script>
 
 <SEO
-	title="Chat - XprismPlay"
-	description="Chat with your friends and fellow traders on XprismPlay."
+	title="Messages - Catplay"
+	description="Chat with your friends and fellow traders on Catplay."
 />
 
 <div class="container mx-auto flex h-[calc(100vh-80px)] max-w-6xl flex-col p-6">
@@ -228,8 +229,15 @@
 												?.toUpperCase() || '?'}</Avatar.Fallback
 										>
 									</Avatar.Root>
-									<div class="min-w-0 flex-1">
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
 										<div class="truncate text-sm font-medium">{channel.name}</div>
+										{#if $CHAT_UNREAD[channel.id]}
+											<span class="bg-primary text-primary-foreground flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold">
+												{$CHAT_UNREAD[channel.id]}
+											</span>
+										{/if}
+									</div>
 										<div class="text-muted-foreground truncate text-xs">
 											{channel.user1Id === null && channel.user2Id === null
 												? 'Group Chat'

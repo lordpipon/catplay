@@ -6,6 +6,7 @@ import { eq, and, or, desc, inArray, sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { hasFlag } from '$lib/data/flags';
 import { redis } from '$lib/server/redis';
+import { encryptMessage, decryptMessage, isEncrypted } from '$lib/server/encryption';
 
 async function verifyChannelAccess(channelId: number, userId: number, flags: bigint) {
 	const [channel] = await db
@@ -78,8 +79,15 @@ export const GET: RequestHandler = async ({ request, params }) => {
 
 	const messages = messagesRaw.reverse().map((m) => {
 		const sender = senderMap.get(m.senderId);
+		let content = m.content;
+		if (isEncrypted(content) && channel.user1Id && channel.user2Id) {
+			try {
+				content = decryptMessage(content, channel.user1Id, channel.user2Id);
+			} catch {}
+		}
 		return {
 			...m,
+			content,
 			senderUsername: sender?.username || 'Unknown',
 			senderImage: sender?.image || null
 		};
@@ -123,8 +131,8 @@ export const POST: RequestHandler = async ({ request, params }) => {
 			.from(friendship)
 			.where(
 				or(
-					and(eq(friendship.user1Id, userId), eq(friendship.user2Id, otherUserId)),
-					and(eq(friendship.user1Id, otherUserId), eq(friendship.user2Id, userId))
+					and(eq(friendship.requesterId, userId), eq(friendship.addresseeId, otherUserId)),
+					and(eq(friendship.requesterId, otherUserId), eq(friendship.addresseeId, userId))
 				)
 			)
 			.limit(1);
@@ -145,12 +153,18 @@ export const POST: RequestHandler = async ({ request, params }) => {
 		if (blocked.length > 0) throw error(403, 'Cannot send messages to this user');
 	}
 
+	const trimmed = content.trim();
+	const isDirectMessage = channel.type === 'DIRECT' && channel.user1Id && channel.user2Id;
+	const encryptedContent = isDirectMessage
+		? encryptMessage(trimmed, channel.user1Id, channel.user2Id)
+		: trimmed;
+
 	const newMsg = await db
 		.insert(chatMessage)
 		.values({
 			channelId,
 			senderId: userId,
-			content: content.trim()
+			content: encryptedContent
 		})
 		.returning();
 
@@ -165,7 +179,7 @@ export const POST: RequestHandler = async ({ request, params }) => {
 			senderId: msgData.senderId,
 			senderUsername: session.user.name,
 			senderImage: session.user.image,
-			content: msgData.content,
+			content: trimmed,
 			createdAt: msgData.createdAt
 		}
 	};

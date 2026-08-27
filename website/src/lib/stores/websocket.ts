@@ -4,6 +4,7 @@ import { PUBLIC_WEBSOCKET_URL } from '$env/static/public';
 import { NOTIFICATIONS, UNREAD_COUNT } from './notifications';
 import { NEW_ACHIEVEMENTS_COUNT } from './achievements';
 import { USER_DATA } from './user-data';
+import { addChatMessage, CHAT_UNREAD_COUNT } from './chat';
 import { toast } from 'svelte-sonner';
 import { goto } from '$app/navigation';
 import { hasFlag, UserFlags } from '$lib/data/flags';
@@ -294,6 +295,19 @@ function handleWebSocketMessage(event: MessageEvent): void {
 			case 'new_comment':
 			case 'comment_liked':
 				handleCommentMessage(message);
+				break;
+
+			case 'chat_message':
+				addChatMessage({
+					id: message.data.id,
+					channelId: message.data.channelId,
+					senderId: message.data.senderId,
+					senderUsername: message.data.senderUsername,
+					senderImage: message.data.senderImage,
+					content: message.data.content,
+					createdAt: message.data.createdAt
+				});
+				incrementChatUnread(message.data.channelId);
 				break;
 
 			case 'notification':

@@ -42,7 +42,8 @@
 		ArrowDown01Icon,
 		UserGroupIcon,
 		Money01Icon,
-		News01Icon
+		News01Icon,
+		Message01Icon
 	} from '@hugeicons/core-free-icons';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -62,6 +63,7 @@
 	import { NEW_ACHIEVEMENTS_COUNT } from '$lib/stores/achievements';
 	import { ARCADE_STATS, fetchArcadeStats } from '$lib/stores/arcade-stats';
 	import { GEMS_BALANCE, fetchGemsBalance } from '$lib/stores/gems';
+	import { CHAT_UNREAD_COUNT } from '$lib/stores/chat';
 	import { _ } from 'svelte-i18n';
 	import { hasFlag, UserFlags } from '$lib/data/flags';
 
@@ -80,6 +82,7 @@
 			{ title: $_('page_names.treemap'), url: '/treemap', icon: Analytics01Icon },
 			{ title: $_('page_names.create_coin'), url: '/coin/create', icon: Coins02Icon },
 			{ title: $_('page_names.notifications'), url: '/notifications', icon: Notification01Icon },
+			{ title: 'Messages', url: '/chat', icon: Message01Icon },
 			{ title: 'VIP', url: '/vip', icon: CrownIcon },
 			{ title: 'Battlepass', url: '/battlepass', icon: Award05Icon },
 			{ title: 'Updates', url: '/updates', icon: News01Icon },
@@ -177,6 +180,11 @@
 										{#if item.title === 'Achievements' && $NEW_ACHIEVEMENTS_COUNT > 0 && $USER_DATA}
 											<Sidebar.MenuBadge class="bg-yellow-500 text-black">
 												{$NEW_ACHIEVEMENTS_COUNT > 99 ? '99+' : $NEW_ACHIEVEMENTS_COUNT}
+											</Sidebar.MenuBadge>
+										{/if}
+										{#if item.title === 'Messages' && $CHAT_UNREAD_COUNT > 0 && $USER_DATA}
+											<Sidebar.MenuBadge class="bg-primary text-primary-foreground">
+												{$CHAT_UNREAD_COUNT > 99 ? '99+' : $CHAT_UNREAD_COUNT}
 											</Sidebar.MenuBadge>
 										{/if}
 										{#if item.title === 'VIP' && $USER_DATA && hasFlag($USER_DATA?.flags, 'IS_VIP')}
