@@ -2,7 +2,7 @@ import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { user, chatChannel, chatMessage, friendship } from '$lib/server/db/schema';
-import { eq, and, or, desc, inArray } from 'drizzle-orm';
+import { eq, and, or, desc, inArray, ne } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { hasFlag } from '$lib/data/flags';
 
@@ -67,8 +67,8 @@ export const GET: RequestHandler = async ({ request }) => {
 		fetchedUsers.forEach((u) => usersInfo.set(u.id, u));
 	}
 
-	// Fetch or create Global Public Chat
-	let [globalChat] = await db
+	// Fetch or create Global Public Chat (dedupe by ensuring only one exists)
+	const globalChats = await db
 		.select()
 		.from(chatChannel)
 		.where(
@@ -78,7 +78,10 @@ export const GET: RequestHandler = async ({ request }) => {
 				eq(chatChannel.user2Id, null)
 			)
 		)
+		.orderBy(chatChannel.id)
 		.limit(1);
+
+	let globalChat = globalChats[0];
 
 	if (!globalChat) {
 		const newGlobal = await db
@@ -92,13 +95,27 @@ export const GET: RequestHandler = async ({ request }) => {
 		globalChat = newGlobal[0];
 	}
 
+	// Remove any stale duplicate global chat rows (race condition guard)
+	if (globalChat) {
+		await db
+			.delete(chatChannel)
+			.where(
+				and(
+					eq(chatChannel.type, 'DIRECT'),
+					eq(chatChannel.user1Id, null),
+					eq(chatChannel.user2Id, null),
+					ne(chatChannel.id, globalChat.id)
+				)
+			);
+	}
+
 	const processedChannels = channels.map((c) => {
 		let name = '';
 		let image = null;
 
 		if (c.type === 'DIRECT') {
 			if (c.user1Id === null && c.user2Id === null) {
-				name = 'Global Group Chat';
+				name = 'Global Chat';
 				image = null; // or some icon
 			} else {
 				// Determine the 'other' user to display, or show both if Head Admin is snooping
@@ -135,7 +152,7 @@ export const GET: RequestHandler = async ({ request }) => {
 	if (!processedChannels.some((c) => c.id === globalChat.id)) {
 		processedChannels.unshift({
 			...globalChat,
-			name: 'Global Group Chat',
+			name: 'Global Chat',
 			image: null
 		});
 	}

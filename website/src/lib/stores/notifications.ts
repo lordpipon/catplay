@@ -2,7 +2,7 @@ import { writable, derived } from 'svelte/store';
 
 export interface Notification {
 	id: number;
-	type: 'HOPIUM' | 'TRANSFER' | 'RUG_PULL' | 'SYSTEM' | 'BATTLEPASS';
+	type: 'HOPIUM' | 'TRANSFER' | 'RUG_PULL' | 'SYSTEM' | 'BATTLEPASS' | 'FRIEND';
 	title: string;
 	message: string;
 	link?: string;

@@ -34,7 +34,8 @@ export const notificationTypeEnum = pgEnum('notification_type', [
 	'TRANSFER',
 	'RUG_PULL',
 	'MENTION',
-	'BATTLEPASS'
+	'BATTLEPASS',
+	'FRIEND'
 ]);
 export const shopItemTypeEnum = pgEnum('shop_item_type', ['namecolor']);
 export const promoRewardTypeEnum = pgEnum('promo_reward_type', ['BASE_CURRENCY', 'GEMS']);

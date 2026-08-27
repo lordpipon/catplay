@@ -61,7 +61,12 @@
 			const res = await fetch('/api/chat/channels');
 			if (res.ok) {
 				const d = await res.json();
-				channels = d.channels || [];
+				const seen = new Set<number>();
+				channels = (d.channels || []).filter((c) => {
+					if (seen.has(c.id)) return false;
+					seen.add(c.id);
+					return true;
+				});
 			}
 		} catch (e) {
 			toast.error('Failed to load channels');
@@ -240,7 +245,7 @@
 									</div>
 										<div class="text-muted-foreground truncate text-xs">
 											{channel.user1Id === null && channel.user2Id === null
-												? 'Group Chat'
+												? 'Global Chat'
 												: channel.type === 'DIRECT'
 													? 'Direct Message'
 													: channel.type?.replace('_', ' ')}
@@ -319,7 +324,7 @@
 						<div class="truncate text-base font-semibold">{activeChannel.name}</div>
 						<div class="text-muted-foreground text-xs">
 							{activeChannel.user1Id === null && activeChannel.user2Id === null
-								? 'Group Chat'
+								? 'Global Chat'
 								: activeChannel.type === 'DIRECT'
 									? 'Direct Message'
 									: activeChannel.type?.replace('_', ' ')}
@@ -330,7 +335,7 @@
 				<div class="flex flex-1 flex-col gap-3 overflow-y-auto p-4" bind:this={scrollViewport}>
 					{#if messages.length === 0}
 						<div class="text-muted-foreground m-auto flex flex-col items-center gap-2 text-sm">
-							<span class="text-4xl">👋</span>
+							<HugeiconsIcon icon={Message01Icon} class="h-8 w-8 opacity-30" />
 							<p>No messages yet. Say hi!</p>
 						</div>
 					{:else}

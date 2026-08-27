@@ -33,6 +33,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { haptic } from '$lib/stores/haptics';
 	import { formatTimezone, getTimezoneDate } from '$lib/utils/timezones.js';
+	import { Message01Icon, UserAdd01Icon, UserCheck01Icon, UserRemove01Icon } from '@hugeicons/core-free-icons';
 
 	let { data } = $props();
 	let username = $derived(data.username);
@@ -46,6 +47,9 @@
 	let groupsLoading = $state(false);
 
 	let previousUsername = $state<string | null>(null);
+
+	let friendStatus = $state<{ status: string; direction?: string } | null>(null);
+	let friendLoading = $state(false);
 
 	$effect(() => {
 		profileData = data.profileData;
@@ -107,11 +111,112 @@
 		}
 	}
 
+	async function checkFriendStatus() {
+		if (!$USER_DATA || isOwnProfile || !profileData?.profile?.id) return;
+		try {
+			const res = await fetch(`/api/friends/status/${profileData.profile.id}`);
+			if (res.ok) {
+				friendStatus = await res.json();
+			}
+		} catch {}
+	}
+
+	async function sendFriendRequest() {
+		if (!$USER_DATA || friendLoading) return;
+		friendLoading = true;
+		try {
+			const res = await fetch('/api/friends', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ targetUserId: profileData.profile.id, action: 'send' })
+			});
+			if (res.ok) {
+				friendStatus = { status: 'pending', direction: 'outgoing' };
+				toast.success('Friend request sent');
+			} else {
+				const d = await res.json();
+				toast.error(d.error || 'Failed to send request');
+			}
+		} catch {
+			toast.error('Network error');
+		} finally {
+			friendLoading = false;
+		}
+	}
+
+	async function removeFriend() {
+		if (!$USER_DATA || friendLoading) return;
+		if (!confirm('Remove this friend?')) return;
+		friendLoading = true;
+		try {
+			const res = await fetch('/api/friends', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ targetUserId: profileData.profile.id, action: 'remove' })
+			});
+			if (res.ok) {
+				friendStatus = null;
+				toast.success('Friend removed');
+			} else {
+				const d = await res.json();
+				toast.error(d.error || 'Failed to remove friend');
+			}
+		} catch {
+			toast.error('Network error');
+		} finally {
+			friendLoading = false;
+		}
+	}
+
+	async function cancelRequest() {
+		if (!$USER_DATA || friendLoading) return;
+		friendLoading = true;
+		try {
+			const res = await fetch('/api/friends', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ targetUserId: profileData.profile.id, action: 'remove' })
+			});
+			if (res.ok) {
+				friendStatus = null;
+				toast.success('Request cancelled');
+			} else {
+				const d = await res.json();
+				toast.error(d.error || 'Failed to cancel request');
+			}
+		} catch {
+			toast.error('Network error');
+		} finally {
+			friendLoading = false;
+		}
+	}
+
+	async function startDM() {
+		if (!$USER_DATA) return;
+		try {
+			const res = await fetch('/api/chat/channels', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ targetUserId: profileData.profile.id })
+			});
+			if (res.ok) {
+				const d = await res.json();
+				goto(`/chat?channel=${d.channel.id}`);
+			} else {
+				const d = await res.json();
+				toast.error(d.message || 'Cannot start chat');
+			}
+		} catch {
+			toast.error('Network error');
+		}
+	}
+
 	onMount(async () => {
 		previousUsername = username;
 		fetchAchievements();
 		fetchUserGroups();
 		checkBlockStatus();
+		checkFriendStatus();
 		if (isOwnProfile) await fetchTransactions();
 	});
 
@@ -122,8 +227,13 @@
 			fetchAchievements();
 			fetchUserGroups();
 			checkBlockStatus();
+			checkFriendStatus();
 			previousUsername = username;
 		}
+	});
+
+	$effect(() => {
+		if (profileData?.profile?.id) checkFriendStatus();
 	});
 
 	$effect(() => {
@@ -500,7 +610,93 @@
 						</div>
 					</div>
 					{#if $USER_DATA && !isOwnProfile}
-						<div class="ml-auto self-start">
+						<div class="flex flex-wrap items-center justify-end gap-2 self-start">
+							{#if friendStatus?.status === 'accepted'}
+								<Button size="sm" variant="outline" onclick={startDM}>
+									<HugeiconsIcon icon={Message01Icon} class="h-4 w-4" />
+									Message
+								</Button>
+								<Button
+									size="sm"
+									variant="destructive"
+									onclick={removeFriend}
+									disabled={friendLoading}
+								>
+									<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
+									Remove Friend
+								</Button>
+							{:else if friendStatus?.status === 'pending' && friendStatus.direction === 'incoming'}
+								<Button
+									size="sm"
+									onclick={() => {
+										const doAccept = async () => {
+											try {
+												const res = await fetch('/api/friends', {
+													method: 'POST',
+													headers: { 'Content-Type': 'application/json' },
+													body: JSON.stringify({
+														targetUserId: profileData.profile.id,
+														action: 'accept'
+													})
+												});
+												if (res.ok) {
+													friendStatus = { status: 'accepted' };
+													toast.success('Friend request accepted');
+												} else {
+													const d = await res.json();
+													toast.error(d.error || 'Failed to accept');
+												}
+											} catch {
+												toast.error('Network error');
+											}
+										};
+										doAccept();
+									}}
+								>
+									<HugeiconsIcon icon={UserCheck01Icon} class="h-4 w-4" />
+									Accept
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									onclick={() => {
+										const doDecline = async () => {
+											try {
+												const res = await fetch('/api/friends', {
+													method: 'POST',
+													headers: { 'Content-Type': 'application/json' },
+													body: JSON.stringify({
+														targetUserId: profileData.profile.id,
+														action: 'decline'
+													})
+												});
+												if (res.ok) {
+													friendStatus = null;
+													toast.success('Request declined');
+												}
+											} catch {
+												toast.error('Network error');
+											}
+										};
+										doDecline();
+									}}
+									class="text-muted-foreground"
+								>
+									<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
+									Decline
+								</Button>
+							{:else if friendStatus?.status === 'pending'}
+								<Button size="sm" variant="outline" onclick={cancelRequest} disabled={friendLoading}>
+									<HugeiconsIcon icon={UserCheck01Icon} class="h-4 w-4" />
+									Request Pending
+								</Button>
+							{:else}
+								<Button size="sm" onclick={sendFriendRequest} disabled={friendLoading}>
+									<HugeiconsIcon icon={UserAdd01Icon} class="h-4 w-4" />
+									Add Friend
+								</Button>
+							{/if}
+
 							<Tooltip.Provider>
 								<Tooltip.Root>
 									<Tooltip.Trigger>

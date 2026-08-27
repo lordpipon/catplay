@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
+	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
@@ -12,7 +13,10 @@
 		TradeUpIcon,
 		Alert02Icon,
 		Target03Icon,
-		Award01Icon
+		Award01Icon,
+		UserGroupIcon,
+		CheckmarkCircle01Icon,
+		Cancel01Icon
 	} from '@hugeicons/core-free-icons';
 	import { onMount } from 'svelte';
 	import {
@@ -21,13 +25,16 @@
 		markNotificationsAsRead
 	} from '$lib/stores/notifications';
 	import { USER_DATA } from '$lib/stores/user-data';
-	import { formatTimeAgo, formatValue } from '$lib/utils';
+	import { formatTimeAgo, formatValue, getPublicUrl } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import NotificationItem from './NotificationItem.svelte';
+	import * as Avatar from '$lib/components/ui/avatar';
 
 	let loading = $state(true);
 	let newNotificationIds = $state<number[]>([]);
+	let friendRequests = $state<any[]>([]);
+	let requestLoading = $state(false);
 
 	onMount(async () => {
 		if (!$USER_DATA) {
@@ -36,7 +43,7 @@
 		}
 
 		try {
-			await fetchNotifications();
+			await Promise.all([fetchNotifications(), fetchFriendRequests()]);
 
 			const unreadIds = ($NOTIFICATIONS || []).filter((n) => !n.isRead).map((n) => n.id);
 			newNotificationIds = unreadIds;
@@ -49,6 +56,42 @@
 		}
 	});
 
+	async function fetchFriendRequests() {
+		try {
+			const res = await fetch('/api/friends/requests');
+			if (res.ok) {
+				const d = await res.json();
+				friendRequests = d.requests || [];
+			}
+		} catch {}
+	}
+
+	async function respondToRequest(friendshipId: number, targetUserId: number, action: 'accept' | 'decline') {
+		requestLoading = true;
+		try {
+			const res = await fetch('/api/friends', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					targetUserId,
+					action
+				})
+			});
+
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.error || `Failed to ${action} request`);
+				return;
+			}
+			friendRequests = friendRequests.filter((r) => r.id !== friendshipId);
+			toast.success(action === 'accept' ? 'Friend request accepted' : 'Request declined');
+		} catch {
+			toast.error('Network error');
+		} finally {
+			requestLoading = false;
+		}
+	}
+
 	function getNotificationIcon(type: string) {
 		switch (type) {
 			case 'HOPIUM':
@@ -59,6 +102,8 @@
 				return Alert02Icon;
 			case 'BATTLEPASS':
 				return Award01Icon;
+			case 'FRIEND':
+				return UserGroupIcon;
 			case 'SYSTEM':
 				return Settings01Icon;
 			default:
@@ -80,7 +125,8 @@
 				TRANSFER: 'bg-green-50/50 dark:bg-green-950/10',
 				RUG_PULL: 'bg-red-50/50 dark:bg-red-950/10',
 				SYSTEM: 'bg-purple-50/50 dark:bg-purple-950/10',
-				BATTLEPASS: 'bg-yellow-50/50 dark:bg-yellow-950/10'
+				BATTLEPASS: 'bg-yellow-50/50 dark:bg-yellow-950/10',
+				FRIEND: 'bg-sky-50/50 dark:bg-sky-950/10'
 			};
 			return `${base} ${colors[type as keyof typeof colors] || 'bg-muted/20'}`;
 		}
@@ -94,7 +140,8 @@
 			TRANSFER: 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400',
 			RUG_PULL: 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400',
 			SYSTEM: 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400',
-			BATTLEPASS: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50 dark:text-yellow-400'
+			BATTLEPASS: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50 dark:text-yellow-400',
+			FRIEND: 'bg-sky-100 text-sky-600 dark:bg-sky-900/50 dark:text-sky-400'
 		};
 		return colors[type as keyof typeof colors] || 'bg-muted text-muted-foreground';
 	}
@@ -112,6 +159,65 @@
 			<p class="text-muted-foreground mb-6">Stay updated with your activities</p>
 		</div>
 	</header>
+
+	{#if $USER_DATA && friendRequests.length > 0}
+		<Card.Root class="mb-6">
+			<Card.Header>
+				<Card.Title class="flex items-center gap-2">
+					<HugeiconsIcon icon={UserGroupIcon} class="h-5 w-5 text-sky-500" />
+					Friend Requests ({friendRequests.length})
+				</Card.Title>
+				<Card.Description>Accept or decline pending friend requests</Card.Description>
+			</Card.Header>
+			<Card.Content>
+				<div class="space-y-3">
+					{#each friendRequests as request}
+						<div class="flex items-center gap-3 rounded-lg border p-3">
+							<Avatar.Root class="h-10 w-10 shrink-0 border">
+								{#if request.requesterImage}
+									<Avatar.Image src={getPublicUrl(request.requesterImage)} />
+								{/if}
+								<Avatar.Fallback class="text-sm"
+									>{request.requesterName?.charAt(0)?.toUpperCase() || '?'}</Avatar.Fallback
+								>
+							</Avatar.Root>
+							<div class="min-w-0 flex-1">
+								<button
+									class="hover:underline truncate text-sm font-medium"
+									onclick={() => goto(`/user/${request.requesterUsername}`)}
+								>
+									@{request.requesterUsername}
+								</button>
+								<div class="text-muted-foreground truncate text-xs">
+									{request.requesterName}
+								</div>
+							</div>
+							<div class="flex shrink-0 gap-2">
+								<Button
+									size="sm"
+									onclick={() => respondToRequest(request.id, request.requesterId, 'accept')}
+									disabled={requestLoading}
+								>
+									<HugeiconsIcon icon={CheckmarkCircle01Icon} class="mr-1 h-4 w-4" />
+									Accept
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									onclick={() => respondToRequest(request.id, request.requesterId, 'decline')}
+									disabled={requestLoading}
+									class="text-muted-foreground"
+								>
+									<HugeiconsIcon icon={Cancel01Icon} class="mr-1 h-4 w-4" />
+									Decline
+								</Button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</Card.Content>
+		</Card.Root>
+	{/if}
 
 	<Card.Root class="gap-1">
 		<Card.Content>
