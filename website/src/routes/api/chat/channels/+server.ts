@@ -2,7 +2,7 @@ import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { user, chatChannel, chatMessage, friendship } from '$lib/server/db/schema';
-import { eq, and, or, desc, inArray, ne } from 'drizzle-orm';
+import { eq, and, or, desc, inArray, ne, isNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { hasFlag } from '$lib/data/flags';
 
@@ -75,8 +75,8 @@ export const GET: RequestHandler = async ({ request }) => {
 			.where(
 				and(
 					eq(chatChannel.type, 'DIRECT'),
-					eq(chatChannel.user1Id, null),
-					eq(chatChannel.user2Id, null)
+					isNull(chatChannel.user1Id),
+					isNull(chatChannel.user2Id)
 				)
 			)
 			.orderBy(chatChannel.id)
@@ -104,8 +104,8 @@ export const GET: RequestHandler = async ({ request }) => {
 					.where(
 						and(
 							eq(chatChannel.type, 'DIRECT'),
-							eq(chatChannel.user1Id, null),
-							eq(chatChannel.user2Id, null)
+							isNull(chatChannel.user1Id),
+							isNull(chatChannel.user2Id)
 						)
 					)
 					.orderBy(chatChannel.id)
@@ -115,17 +115,17 @@ export const GET: RequestHandler = async ({ request }) => {
 
 	// Safety net: remove any stale duplicate global chat rows that predate the unique index
 	if (globalChat) {
-		await db
-			.delete(chatChannel)
-			.where(
-				and(
-					eq(chatChannel.type, 'DIRECT'),
-					eq(chatChannel.user1Id, null),
-					eq(chatChannel.user2Id, null),
-					ne(chatChannel.id, globalChat.id)
-				)
-			);
-	}
+			await db
+				.delete(chatChannel)
+				.where(
+					and(
+						eq(chatChannel.type, 'DIRECT'),
+						isNull(chatChannel.user1Id),
+						isNull(chatChannel.user2Id),
+						ne(chatChannel.id, globalChat.id)
+					)
+				);
+		}
 
 	const processedChannels = channels.map((c) => {
 		let name = '';

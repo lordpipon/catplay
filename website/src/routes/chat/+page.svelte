@@ -79,8 +79,19 @@
 		try {
 			const res = await fetch('/api/friends');
 			if (res.ok) {
-				const d = await res.json();
-				friends = d.friends || [];
+				const list = await res.json();
+				const myId = Number($USER_DATA?.id);
+				friends = (Array.isArray(list) ? list : [])
+					.filter((f) => f.status === 'accepted')
+					.map((f) => {
+						const otherIsRequester = f.requesterId !== myId;
+						return {
+							id: otherIsRequester ? f.requesterId : f.addresseeId,
+							name: otherIsRequester ? f.requesterName : f.addresseeName,
+							username: otherIsRequester ? f.requesterUsername : f.addresseeUsername,
+							image: otherIsRequester ? f.requesterImage : f.addresseeImage
+						};
+					});
 			}
 		} catch (e) {
 			toast.error('Failed to load friends');
