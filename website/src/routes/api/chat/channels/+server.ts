@@ -1,8 +1,9 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, chatChannel, chatMessage, friendship } from '$lib/server/db/schema';
-import { eq, and, or, desc, inArray, ne, isNull } from 'drizzle-orm';
+import { user, chatChannel, friendship } from '$lib/server/db/schema';
+import { eq, and, or, inArray, ne, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { RequestHandler } from './$types';
 import { hasFlag } from '$lib/data/flags';
 
@@ -175,7 +176,101 @@ export const GET: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	return json({ channels: processedChannels });
+	const channelIds = processedChannels.map((c) => c.id);
+
+	// Last message per channel (preview)
+	const lastMessages: Record<number, { content: string; createdAt: string; senderId: number }> = {};
+	if (channelIds.length > 0) {
+		const rows = await db.execute(sql`
+			SELECT DISTINCT ON (channel_id) channel_id, content, created_at, sender_id
+			FROM chat_message
+			WHERE channel_id IN (${sql.join(channelIds.map((id) => sql`${id}`), sql`, `)})
+			ORDER BY channel_id, created_at DESC
+		`);
+		(rows?.rows ?? []).forEach((r: any) => {
+			lastMessages[Number(r.channel_id)] = {
+				content: String(r.content ?? ''),
+				createdAt: String(r.created_at),
+				senderId: Number(r.sender_id)
+			};
+		});
+	}
+
+	// Attach preview + a stable "sortAt" to each channel
+	const merged: any[] = processedChannels.map((c) => {
+		const last = lastMessages[c.id];
+		return {
+			...c,
+			kind: 'channel',
+			lastMessage: last?.content ?? null,
+			lastMessageAt: last?.createdAt ?? null,
+			sortAt: last?.createdAt ?? c.createdAt
+		};
+	});
+
+	// Accepted friends — merge as virtual DM entries when there's no existing channel
+	if (!isHeadAdmin) {
+		const myId = userId;
+		const requester = alias(user, 'requester');
+		const addressee = alias(user, 'addressee');
+		const friendRows = await db
+			.select({
+				friendshipId: friendship.id,
+				requesterId: friendship.requesterId,
+				addresseeId: friendship.addresseeId,
+				requesterName: requester.name,
+				requesterUsername: requester.username,
+				requesterImage: requester.image,
+				addresseeName: addressee.name,
+				addresseeUsername: addressee.username,
+				addresseeImage: addressee.image
+			})
+			.from(friendship)
+			.leftJoin(requester, eq(requester.id, friendship.requesterId))
+			.leftJoin(addressee, eq(addressee.id, friendship.addresseeId))
+			.where(and(or(eq(friendship.requesterId, myId), eq(friendship.addresseeId, myId)), eq(friendship.status, 'accepted')));
+
+		const existingPartnerIds = new Set<number>(
+			merged
+				.filter((c) => c.type === 'DIRECT' && c.user1Id !== null && c.user2Id !== null && c.id !== globalChat.id)
+				.map((c) => (Number(c.user1Id) === myId ? Number(c.user2Id) : Number(c.user1Id)))
+		);
+
+		friendRows.forEach((f) => {
+			const otherIsRequester = f.requesterId !== myId;
+			const partnerId = otherIsRequester ? f.requesterId : f.addresseeId;
+			const username = otherIsRequester ? f.requesterUsername : f.addresseeUsername;
+			const image = otherIsRequester ? f.requesterImage : f.addresseeImage;
+
+			if (existingPartnerIds.has(partnerId)) return;
+
+			const existing = merged.find(
+				(c) =>
+					c.type === 'DIRECT' &&
+					((Number(c.user1Id) === myId && Number(c.user2Id) === partnerId) ||
+						(Number(c.user1Id) === partnerId && Number(c.user2Id) === myId))
+			);
+			if (existing) return;
+
+			merged.push({
+				id: null,
+				type: 'DIRECT',
+				user1Id: null,
+				user2Id: null,
+				createdAt: new Date(0).toISOString(),
+				name: `@${username}`,
+				image,
+				kind: 'friend',
+				partnerId,
+				username,
+				lastMessage: null,
+				lastMessageAt: null,
+				sortAt: new Date(0).toISOString()
+			});
+		});
+	}
+
+	return json({ channels: merged });
 };
 
 export const POST: RequestHandler = async ({ request }) => {

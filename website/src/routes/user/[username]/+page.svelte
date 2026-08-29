@@ -612,22 +612,22 @@
 					{#if $USER_DATA && !isOwnProfile}
 						<div class="flex flex-wrap items-center justify-end gap-2 self-start">
 							{#if friendStatus?.status === 'accepted'}
-								<Button size="sm" variant="outline" onclick={startDM}>
-									<HugeiconsIcon icon={Message01Icon} class="h-4 w-4" />
+								<Button size="xs" variant="outline" onclick={startDM}>
+									<HugeiconsIcon icon={Message01Icon} class="h-3.5 w-3.5" />
 									Message
 								</Button>
 								<Button
-									size="sm"
+									size="xs"
 									variant="destructive"
 									onclick={removeFriend}
 									disabled={friendLoading}
 								>
-									<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
-									Remove Friend
+									<HugeiconsIcon icon={UserRemove01Icon} class="h-3.5 w-3.5" />
+									Remove
 								</Button>
 							{:else if friendStatus?.status === 'pending' && friendStatus.direction === 'incoming'}
 								<Button
-									size="sm"
+									size="xs"
 									onclick={() => {
 										const doAccept = async () => {
 											try {
@@ -653,11 +653,11 @@
 										doAccept();
 									}}
 								>
-									<HugeiconsIcon icon={UserCheck01Icon} class="h-4 w-4" />
+									<HugeiconsIcon icon={UserCheck01Icon} class="h-3.5 w-3.5" />
 									Accept
 								</Button>
 								<Button
-									size="sm"
+									size="xs"
 									variant="outline"
 									onclick={() => {
 										const doDecline = async () => {
@@ -682,17 +682,17 @@
 									}}
 									class="text-muted-foreground"
 								>
-									<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
+									<HugeiconsIcon icon={UserRemove01Icon} class="h-3.5 w-3.5" />
 									Decline
 								</Button>
 							{:else if friendStatus?.status === 'pending'}
-								<Button size="sm" variant="outline" onclick={cancelRequest} disabled={friendLoading}>
-									<HugeiconsIcon icon={UserCheck01Icon} class="h-4 w-4" />
+								<Button size="xs" variant="outline" onclick={cancelRequest} disabled={friendLoading}>
+									<HugeiconsIcon icon={UserCheck01Icon} class="h-3.5 w-3.5" />
 									Request Pending
 								</Button>
 							{:else}
-								<Button size="sm" onclick={sendFriendRequest} disabled={friendLoading}>
-									<HugeiconsIcon icon={UserAdd01Icon} class="h-4 w-4" />
+								<Button size="xs" onclick={sendFriendRequest} disabled={friendLoading}>
+									<HugeiconsIcon icon={UserAdd01Icon} class="h-3.5 w-3.5" />
 									Add Friend
 								</Button>
 							{/if}

@@ -189,9 +189,6 @@
 												{$CHAT_UNREAD_COUNT > 99 ? '99+' : $CHAT_UNREAD_COUNT}
 											</Sidebar.MenuBadge>
 										{/if}
-										{#if item.title === 'VIP' && $USER_DATA && hasFlag($USER_DATA?.flags, 'IS_VIP')}
-											<Sidebar.MenuBadge class="bg-yellow-500 text-black">VIP</Sidebar.MenuBadge>
-										{/if}
 									</a>
 								{/snippet}
 							</Sidebar.MenuButton>

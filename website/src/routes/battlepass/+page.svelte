@@ -48,13 +48,6 @@
 		return { current, target: tier.taskTarget, pct: Math.min(100, Math.round((current / tier.taskTarget) * 100)) };
 	}
 
-	function formatCount(n: number): string {
-		if (n >= 1e9) return `${(n / 1e9).toFixed(1).replace(/\.0$/, '')}B`;
-		if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
-		if (n >= 1e4) return `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K`;
-		return n.toLocaleString();
-	}
-
 	async function load() {
 		const res = await fetch('/api/battlepass');
 		if (res.ok) {
@@ -170,18 +163,6 @@
 				{claimingAll ? 'Claiming...' : `Claim All (${claimableTiers.length} reward${claimableTiers.length !== 1 ? 's' : ''})`}
 			</Button>
 		{/if}
-
-		<!-- Your stats -->
-		<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-			{#each [['trades','Trades (season)'], ['arcade_games','Arcade (season)'], ['volume_traded','Total Volume'], ['portfolio_value','Net Worth']] as [key, label]}
-				<Card.Root>
-					<Card.Content class="p-3">
-						<p class="text-lg font-bold">{formatCount(counts[key] ?? 0)}</p>
-						<p class="text-muted-foreground text-xs">{label}</p>
-					</Card.Content>
-				</Card.Root>
-			{/each}
-		</div>
 
 		<!-- Legend -->
 		<div class="flex gap-4 text-xs">
