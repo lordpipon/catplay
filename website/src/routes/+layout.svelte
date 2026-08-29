@@ -32,6 +32,13 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 		websocketController.connect();
 		startVipUserPolling();
 
+		// Register service worker (for web push) silently; no permission prompt here.
+		if ('serviceWorker' in navigator && 'PushManager' in window) {
+			navigator.serviceWorker.register('/sw.js').catch((err) => {
+				console.error('Failed to register service worker:', err);
+			});
+		}
+
 		console.log(
 			`%c                                       .--                    
                                       .=--:                   

@@ -30,6 +30,7 @@
 	import { USER_DATA } from '$lib/stores/user-data';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { client } from '$lib/auth-client';
+	import { ensurePushSubscription, disablePushNotifications, isPushSupported } from '$lib/push';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { haptic } from '$lib/stores/haptics';
 	import { Select } from 'bits-ui';
@@ -70,6 +71,9 @@
 	let isDeleting = $state(false);
 	let isDownloading = $state(false);
 	let disableMentions = $state($USER_DATA?.disableMentions || false);
+	let pushEnabled = $state(false);
+	let pushSupported = $state(false);
+	let pushLoading = $state(true);
 
 	// Blocked users state
 	let blockedUsers = $state<
@@ -284,6 +288,30 @@
 		}
 	}
 
+	async function togglePush() {
+		pushLoading = true;
+		haptic.trigger('light');
+		const next = !pushEnabled;
+		try {
+			if (next) {
+				const ok = await ensurePushSubscription();
+				if (!ok) {
+					toast.error('Could not enable push notifications. Please allow notification permission.');
+					return;
+				}
+			} else {
+				await disablePushNotifications();
+			}
+			pushEnabled = next;
+			toast.success(next ? 'Push notifications enabled' : 'Push notifications disabled');
+		} catch (err) {
+			console.error(err);
+			toast.error('Failed to update push notification settings');
+		} finally {
+			pushLoading = false;
+		}
+	}
+
 	function handleMasterVolumeChange(value: number) {
 		masterVolume = value;
 		const normalizedValue = value / 100;
@@ -471,6 +499,21 @@
 
 	onMount(() => {
 		loadSecurity();
+
+		if (isPushSupported()) {
+			pushSupported = true;
+			fetch('/api/push/status')
+				.then((res) => (res.ok ? res.json() : null))
+				.then((data) => {
+					pushEnabled = !!(data && data.registered);
+				})
+				.catch(() => {})
+				.finally(() => {
+					pushLoading = false;
+				});
+		} else {
+			pushLoading = false;
+		}
 	});
 
 	async function downloadUserData() {
@@ -786,6 +829,17 @@
 						</div>
 						<Switch checked={!disableMentions} onCheckedChange={toggleDisableMentions} />
 					</div>
+					{#if pushSupported}
+						<div class="flex items-center justify-between rounded-lg border p-4">
+							<div class="space-y-1">
+								<h4 class="text-sm font-medium">Push Notifications</h4>
+								<p class="text-muted-foreground text-xs">
+									Get notified about rug pulls, friend requests, battlepass rewards and updates
+								</p>
+							</div>
+							<Switch checked={pushEnabled} onCheckedChange={togglePush} />
+						</div>
+					{/if}
 				</Card.Content>
 			</Card.Root>
 

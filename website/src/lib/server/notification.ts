@@ -1,6 +1,7 @@
 import { db } from './db';
 import { notifications, notificationTypeEnum } from './db/schema';
 import { redis } from './redis';
+import { sendPushToUser } from './push';
 
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
 
@@ -37,5 +38,16 @@ export async function createNotification(
 		await redis.publish(channel, JSON.stringify(payload));
 	} catch (error) {
 		console.error('Failed to send notification via Redis:', error);
+	}
+
+	try {
+		await sendPushToUser(userId, {
+			title,
+			message,
+			url: link,
+			type
+		});
+	} catch (error) {
+		console.error('Failed to send web push notification:', error);
 	}
 }

@@ -938,3 +938,23 @@ export const userStake = pgTable(
 		userCoinUnique: unique('user_stake_user_coin_unique').on(table.userId, table.coinId)
 	})
 );
+
+// ---- Push Notifications ----
+
+export const pushSubscription = pgTable(
+	'push_subscription',
+	{
+		id: serial('id').primaryKey(),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		endpoint: text('endpoint').notNull(),
+		p256dh: text('p256dh').notNull(),
+		auth: text('auth').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		userIdIdx: index('push_subscription_user_id_idx').on(table.userId),
+		endpointUnique: unique('push_subscription_endpoint_unique').on(table.endpoint)
+	})
+);

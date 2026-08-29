@@ -16,8 +16,8 @@
 		Message01Icon,
 		ArrowLeft01Icon,
 		Search01Icon,
-		Send01Icon,
-		Users01Icon
+		SendToMobileIcon,
+		UserGroupIcon
 	} from '@hugeicons/core-free-icons';
 
 	interface ChatChannel {
@@ -268,7 +268,7 @@
 					</div>
 				{:else if !hasResults}
 					<div class="text-muted-foreground flex flex-col items-center gap-3 p-8 text-center text-sm">
-						<HugeiconsIcon icon={Users01Icon} class="h-10 w-10 opacity-30" />
+						<HugeiconsIcon icon={UserGroupIcon} class="h-10 w-10 opacity-30" />
 						{isGlobalSearch
 							? 'No chats or friends match your search.'
 							: 'No conversations yet. Add some friends to start chatting!'}
@@ -410,7 +410,7 @@
 							disabled={!messageInput.trim() || sending}
 							class="gap-1.5 rounded-full px-6"
 						>
-							<HugeiconsIcon icon={Send01Icon} class="h-4 w-4" />
+							<HugeiconsIcon icon={SendToMobileIcon} class="h-4 w-4" />
 							Send
 						</Button>
 					</form>
