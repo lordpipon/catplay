@@ -12,6 +12,7 @@
 	import { getPublicUrl, formatDate } from '$lib/utils';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import {
 		Message01Icon,
 		ArrowLeft01Icon,
@@ -31,6 +32,7 @@
 		kind: 'channel' | 'friend';
 		partnerId?: number;
 		username?: string;
+		members?: { id: number; username: string; image: string | null }[];
 		lastMessage: string | null;
 		lastMessageAt: string | null;
 		sortAt: string;
@@ -42,6 +44,9 @@
 	let messageInput = $state('');
 	let sending = $state(false);
 	let searchQuery = $state('');
+
+	let showCreateGroup = $state(false);
+	let creatingGroup = $state(false);
 
 	let activeChannel = $derived(channels.find((c) => c.id === activeChannelId));
 	let messages = $derived($CHAT_MESSAGES[activeChannelId as number] || []);
@@ -215,6 +220,71 @@
 		if (!s) return '';
 		return s.length > len ? s.slice(0, len - 1).trimEnd() + '…' : s;
 	}
+
+	function isGroup(c: ChatChannel): boolean {
+		return c.type === 'GROUP';
+	}
+
+	// Friends available to add to a new group:
+	// - virtual friend entries (no DM channel yet)
+	// - DM partners who already have a DIRECT channel
+	let myUserId = $derived(Number($USER_DATA?.id));
+	let groupFriendOptions = $derived.by(() => {
+		const opt = new Map<number, string>();
+		for (const c of channels) {
+			if (c.kind === 'friend' && c.partnerId != null) {
+				opt.set(c.partnerId, c.username ?? '');
+			} else if (
+				c.type === 'DIRECT' &&
+				c.user1Id !== null &&
+				c.user2Id !== null &&
+				!isGlobal(c)
+			) {
+				const partnerId = Number(c.user1Id) === myUserId ? Number(c.user2Id) : Number(c.user1Id);
+				if (partnerId === myUserId) continue;
+				opt.set(partnerId, c.name?.replace(/^@/, '') ?? '');
+			}
+		}
+		return [...opt].map(([id, username]) => ({ id, username }));
+	});
+
+	let selectedGroupFriends = $state<number[]>([]);
+
+	function toggleGroupFriend(id: number) {
+		if (selectedGroupFriends.includes(id)) {
+			selectedGroupFriends = selectedGroupFriends.filter((x) => x !== id);
+		} else {
+			selectedGroupFriends = [...selectedGroupFriends, id];
+		}
+	}
+
+	async function createGroup() {
+		if (selectedGroupFriends.length < 2 || creatingGroup) return;
+		creatingGroup = true;
+		try {
+			const res = await fetch('/api/chat/channels', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ type: 'group', memberIds: selectedGroupFriends })
+			});
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.message || d.error || 'Failed to create group');
+				return;
+			}
+			const d = await res.json();
+			showCreateGroup = false;
+			selectedGroupFriends = [];
+			await fetchChannels();
+			const fresh = channels.find((c) => c.id === d.channel.id);
+			if (fresh) selectChannel(fresh.id!);
+			else selectChannel(d.channel.id);
+		} catch {
+			toast.error('Network error');
+		} finally {
+			creatingGroup = false;
+		}
+	}
 </script>
 
 <SEO
@@ -242,7 +312,8 @@
 		>
 			<div class="border-b p-3">
 				<div class="relative">
-					<Search01Icon
+					<HugeiconsIcon
+						icon={Search01Icon}
 						class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
 					/>
 					<Input
@@ -250,6 +321,17 @@
 						placeholder="Search chats and friends..."
 						class="bg-muted/50 rounded-full pl-9"
 					/>
+				</div>
+				<div class="mt-2 flex justify-end">
+					<Button
+						size="xs"
+						variant="outline"
+						class="gap-1 text-xs"
+						onclick={() => (showCreateGroup = true)}
+					>
+						<HugeiconsIcon icon={UserGroupIcon} class="h-3.5 w-3.5" />
+						New group
+					</Button>
 				</div>
 			</div>
 
@@ -294,6 +376,10 @@
 									{#if isGlobal(channel)}
 										<span class="bg-primary absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background">
 											<HugeiconsIcon icon={Message01Icon} class="h-2.5 w-2.5 text-primary-foreground" />
+										</span>
+									{:else if isGroup(channel)}
+										<span class="bg-primary absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background">
+											<HugeiconsIcon icon={UserGroupIcon} class="h-2.5 w-2.5 text-primary-foreground" />
 										</span>
 									{/if}
 								</div>
@@ -348,7 +434,9 @@
 								? 'Everyone across Catplay'
 								: activeChannel.type === 'DIRECT'
 									? 'Direct Message'
-									: activeChannel.type?.replace('_', ' ')}
+									: activeChannel.type === 'GROUP'
+										? `${activeChannel.members?.length ?? 0} members`
+										: activeChannel.type?.replace('_', ' ')}
 						</div>
 					</div>
 				</div>
@@ -427,3 +515,78 @@
 		</Card.Root>
 	</div>
 </div>
+
+<Dialog.Root bind:open={showCreateGroup}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title class="flex items-center gap-2">
+				<HugeiconsIcon icon={UserGroupIcon} class="h-5 w-5" />
+				New group chat
+			</Dialog.Title>
+			<Dialog.Description>
+				Pick 2+ friends to start a group chat. Members are added when you create it.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="max-h-[45vh] overflow-y-auto px-6">
+			{#if groupFriendOptions.length === 0}
+				<p class="text-muted-foreground py-6 text-center text-sm">
+					You need at least 2 friends to create a group. Add some friends first!
+				</p>
+			{:else}
+				<div class="flex flex-col gap-1">
+					{#each groupFriendOptions as friend (friend.id)}
+						<button
+							class="flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition-colors {selectedGroupFriends.includes(
+								friend.id
+							)
+								? 'bg-primary/10'
+								: 'hover:bg-muted'}"
+							onclick={() => toggleGroupFriend(friend.id)}
+						>
+							<Avatar.Root class="h-9 w-9 border">
+								<Avatar.Fallback class="text-sm">{friend.username?.charAt(0)?.toUpperCase()}</Avatar.Fallback>
+							</Avatar.Root>
+							<span class="min-w-0 flex-1 truncate text-sm">@{friend.username}</span>
+							<span
+								class="flex h-5 w-5 items-center justify-center rounded-md border {selectedGroupFriends.includes(
+									friend.id
+								)
+									? 'bg-primary border-primary text-primary-foreground'
+									: 'border-input text-primary-foreground'}"
+							>
+								{#if selectedGroupFriends.includes(friend.id)}
+									<svg viewBox="0 0 12 12" class="h-3 w-3" fill="none">
+										<path
+											d="M2.5 6l2.5 2.5 4.5-5"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										/>
+									</svg>
+								{/if}
+							</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
+		<Dialog.Footer>
+			<Button
+				variant="outline"
+				disabled={creatingGroup}
+				onclick={() => (showCreateGroup = false)}
+			>
+				Cancel
+			</Button>
+			<Button
+				onclick={createGroup}
+				disabled={selectedGroupFriends.length < 2 || creatingGroup}
+				class="gap-1.5"
+			>
+				<HugeiconsIcon icon={UserGroupIcon} class="h-4 w-4" />
+				{creatingGroup ? 'Creating...' : `Create group (${selectedGroupFriends.length})`}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>

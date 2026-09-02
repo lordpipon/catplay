@@ -1,7 +1,7 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, chatChannel, chatMessage, friendship, userBlock } from '$lib/server/db/schema';
+import { user, chatChannel, chatChannelMember, chatMessage, friendship, userBlock } from '$lib/server/db/schema';
 import { eq, and, or, desc, inArray, sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { hasFlag } from '$lib/data/flags';
@@ -28,6 +28,20 @@ async function verifyChannelAccess(channelId: number, userId: number, flags: big
 		if (!isParticipant && !isHeadAdmin && !isGlobalPublic) {
 			throw error(403, 'Access denied');
 		}
+	}
+
+	if (channel.type === 'GROUP') {
+		const member = await db
+			.select({ channelId: chatChannelMember.channelId })
+			.from(chatChannelMember)
+			.where(
+				and(
+					eq(chatChannelMember.channelId, channelId),
+					eq(chatChannelMember.userId, userId)
+				)
+			)
+			.limit(1);
+		if (member.length === 0) throw error(403, 'Access denied');
 	}
 
 	return channel;
@@ -214,6 +228,14 @@ export const POST: RequestHandler = async ({ request, params }) => {
 		} else {
 			if (channel.user1Id) await redis.publish(`chat:${channel.user1Id}`, JSON.stringify(payload));
 			if (channel.user2Id) await redis.publish(`chat:${channel.user2Id}`, JSON.stringify(payload));
+		}
+	} else if (channel.type === 'GROUP') {
+		const members = await db
+			.select({ userId: chatChannelMember.userId })
+			.from(chatChannelMember)
+			.where(eq(chatChannelMember.channelId, channelId));
+		for (const m of members) {
+			await redis.publish(`chat:${m.userId}`, JSON.stringify(payload));
 		}
 	} else {
 		let query = db.select({ id: user.id }).from(user);

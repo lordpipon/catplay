@@ -898,6 +898,25 @@ export const chatMessage = pgTable(
 	})
 );
 
+// Group chat memberships (GROUP channels only). DIRECT channels keep user1Id/user2Id.
+export const chatChannelMember = pgTable(
+	'chat_channel_member',
+	{
+		channelId: integer('channel_id')
+			.notNull()
+			.references(() => chatChannel.id, { onDelete: 'cascade' }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.channelId, table.userId] }),
+		userIdIdx: index('chat_channel_member_user_idx').on(table.userId),
+		memberChannelIdx: index('chat_channel_member_channel_idx').on(table.channelId)
+	})
+);
+
 // ---- Coin Staking ----
 
 export const coinStakingPool = pgTable(

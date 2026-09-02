@@ -1,7 +1,7 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, chatChannel, friendship } from '$lib/server/db/schema';
+import { user, chatChannel, chatChannelMember, friendship } from '$lib/server/db/schema';
 import { eq, and, or, inArray, ne, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { RequestHandler } from './$types';
@@ -32,6 +32,18 @@ export const GET: RequestHandler = async ({ request }) => {
 		)
 	];
 
+	// GROUP chats the user is a member of
+	const groupRows = await db
+		.select({ channelId: chatChannelMember.channelId })
+		.from(chatChannelMember)
+		.where(eq(chatChannelMember.userId, userId));
+	const groupChannelIds = groupRows.map((r) => r.channelId);
+	if (groupChannelIds.length > 0) {
+		conditions.push(
+			and(eq(chatChannel.type, 'GROUP'), inArray(chatChannel.id, groupChannelIds))
+		);
+	}
+
 	if (isAdmin) conditions.push(eq(chatChannel.type, 'ADMIN_GLOBAL'));
 	if (isHeadAdmin) conditions.push(eq(chatChannel.type, 'HEAD_ADMIN'));
 
@@ -45,14 +57,32 @@ export const GET: RequestHandler = async ({ request }) => {
 		.from(chatChannel)
 		.where(or(...conditions));
 
-	// For DMs, fetch the other user's info to display
+	// For DMs, fetch the other user's info to display; for groups, fetch all members
+	const memberChannelIds = channels.map((c) => c.id);
 	const userIdsToFetch = new Set<number>();
 	channels.forEach((c) => {
-		if (c.type === 'DIRECT') {
-			if (c.user1Id) userIdsToFetch.add(c.user1Id);
-			if (c.user2Id) userIdsToFetch.add(c.user2Id);
+		if (c.type === 'DIRECT' && c.user1Id !== null && c.user2Id !== null) {
+			userIdsToFetch.add(c.user1Id);
+			userIdsToFetch.add(c.user2Id);
 		}
 	});
+
+	// Member maps for GROUP channels (channelId -> array of member users)
+	const groupMemberMap = new Map<number, { id: number; username: string; image: string | null }[]>();
+	if (groupChannelIds.length > 0) {
+		const memberRows = await db
+			.select({
+				channelId: chatChannelMember.channelId,
+				userId: chatChannelMember.userId
+			})
+			.from(chatChannelMember)
+			.where(inArray(chatChannelMember.channelId, memberChannelIds));
+		memberRows.forEach((r) => {
+			userIdsToFetch.add(r.userId);
+			if (!groupMemberMap.has(r.channelId)) groupMemberMap.set(r.channelId, []);
+			groupMemberMap.get(r.channelId)!.push({ id: r.userId, username: '', image: null });
+		});
+	}
 
 	let usersInfo = new Map();
 	if (userIdsToFetch.size > 0) {
@@ -66,6 +96,17 @@ export const GET: RequestHandler = async ({ request }) => {
 			.where(inArray(user.id, Array.from(userIdsToFetch)));
 
 		fetchedUsers.forEach((u) => usersInfo.set(u.id, u));
+		// Join usernames/images into group member placeholders
+		groupMemberMap.forEach((members, chId) => {
+			groupMemberMap.set(
+				chId,
+				members.map((m) => ({
+					...m,
+					username: usersInfo.get(m.id)?.username ?? 'Unknown User',
+					image: usersInfo.get(m.id)?.image ?? null
+				}))
+			);
+		});
 	}
 
 	// Fetch or create Global Public Chat (only one can ever exist via unique index)
@@ -131,6 +172,7 @@ export const GET: RequestHandler = async ({ request }) => {
 	const processedChannels = channels.map((c) => {
 		let name = '';
 		let image = null;
+		let members: { id: number; username: string; image: string | null }[] | null = null;
 
 		if (c.type === 'DIRECT') {
 			if (c.user1Id === null && c.user2Id === null) {
@@ -152,6 +194,13 @@ export const GET: RequestHandler = async ({ request }) => {
 					name = `${u1 ? '@' + u1.username : 'Unknown'} & ${u2 ? '@' + u2.username : 'Unknown'}`;
 				}
 			}
+		} else if (c.type === 'GROUP') {
+			members = groupMemberMap.get(c.id) ?? [];
+			const otherMembers = members.filter((m) => m.id !== userId);
+			name = otherMembers.length
+				? otherMembers.slice(0, 3).map((m) => m.username).join(', ') +
+					(otherMembers.length > 3 ? ` +${otherMembers.length - 3}` : '')
+				: 'Group Chat';
 		} else if (c.type === 'ADMIN_GLOBAL') {
 			name = 'Global Admin Chat';
 		} else if (c.type === 'HEAD_ADMIN') {
@@ -161,7 +210,9 @@ export const GET: RequestHandler = async ({ request }) => {
 		return {
 			...c,
 			name,
-			image
+			image,
+			members,
+			kind: 'channel'
 		};
 	});
 
@@ -208,8 +259,11 @@ export const GET: RequestHandler = async ({ request }) => {
 		};
 	});
 
-	// Accepted friends — merge as virtual DM entries when there's no existing channel
-	if (!isHeadAdmin) {
+	// Accepted friends — merge as virtual DM entries when there's no existing channel.
+	// Merged for everyone (including Head Admins). Dedupe only against DIRECT channels
+	// the current user is a participant of — other users' channels (visible to Head
+	// Admins) must not suppress their own friends.
+	{
 		const myId = userId;
 		const requester = alias(user, 'requester');
 		const addressee = alias(user, 'addressee');
@@ -232,7 +286,14 @@ export const GET: RequestHandler = async ({ request }) => {
 
 		const existingPartnerIds = new Set<number>(
 			merged
-				.filter((c) => c.type === 'DIRECT' && c.user1Id !== null && c.user2Id !== null && c.id !== globalChat.id)
+				.filter(
+					(c) =>
+						c.type === 'DIRECT' &&
+						c.user1Id !== null &&
+						c.user2Id !== null &&
+						c.id !== globalChat.id &&
+						(Number(c.user1Id) === myId || Number(c.user2Id) === myId)
+				)
 				.map((c) => (Number(c.user1Id) === myId ? Number(c.user2Id) : Number(c.user1Id)))
 		);
 
@@ -270,6 +331,12 @@ export const GET: RequestHandler = async ({ request }) => {
 		});
 	}
 
+	// Head Admins see every DIRECT channel — sort real DMs they participate in
+	// first, then snooped ones, so participating channels don't get buried.
+	if (isHeadAdmin) {
+		merged.sort((a) => (Number(a.user1Id) === userId || Number(a.user2Id) === userId ? -1 : 1));
+	}
+
 	return json({ channels: merged });
 };
 
@@ -278,21 +345,94 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!session?.user) throw error(401, 'Not authenticated');
 
 	const userId = Number(session.user.id);
-	const { targetUserId } = await request.json();
+	const body = await request.json();
 
-	if (!targetUserId) throw error(400, 'targetUserId is required');
-
-	if (userId === targetUserId) throw error(400, 'Cannot chat with yourself');
-
-	// Check if they are friends (only friends can start a DM, unless Head Admin)
 	const [userData] = await db
 		.select({ flags: user.flags })
 		.from(user)
 		.where(eq(user.id, userId))
 		.limit(1);
+	if (!userData) throw error(404, 'User not found');
 	const isHeadAdmin = hasFlag(userData.flags, 'IS_HEAD_ADMIN');
 
+	// ---- Create a group chat ----
+	if (body.type === 'group') {
+		const memberIds: number[] = body.memberIds;
+		if (!Array.isArray(memberIds) || memberIds.length < 2) {
+			throw error(400, 'Group chats need at least 2 other members');
+		}
+
+		const uniqueIds = Array.from(new Set(memberIds)).filter((m) => m !== userId);
+		if (uniqueIds.length < 2) throw error(400, 'Group chats need at least 2 other members');
+
+		if (!isHeadAdmin) {
+			// Only friends can be added to a group (not Head Admin)
+			const friendRows = await db
+				.select({ requesterId: friendship.requesterId, addresseeId: friendship.addresseeId })
+				.from(friendship)
+				.where(
+					and(
+						eq(friendship.status, 'accepted'),
+						or(
+							and(eq(friendship.requesterId, userId), inArray(friendship.addresseeId, uniqueIds)),
+							and(inArray(friendship.requesterId, uniqueIds), eq(friendship.addresseeId, userId))
+						)
+					)
+				);
+
+			const validFriendIds = new Set<number>();
+			friendRows.forEach((f) => {
+				validFriendIds.add(f.requesterId === userId ? f.addresseeId : f.requesterId);
+			});
+			const invalid = uniqueIds.filter((m) => !validFriendIds.has(m));
+			if (invalid.length > 0) throw error(403, 'You can only add friends to a group');
+		}
+
+		const allMemberIds = [userId, ...uniqueIds];
+
+		const [newChannel] = await db
+			.insert(chatChannel)
+			.values({ type: 'GROUP' })
+			.returning();
+
+		await db.insert(chatChannelMember).values(
+			allMemberIds.map((memberId) => ({ channelId: newChannel.id, userId: memberId }))
+		);
+
+		// Build member info for the response
+		const memberUsers = await db
+			.select({ id: user.id, username: user.username, image: user.image })
+			.from(user)
+			.where(inArray(user.id, allMemberIds));
+
+		const otherMembers = memberUsers.filter((m) => m.id !== userId);
+		const name = otherMembers
+			.slice(0, 3)
+			.map((m) => m.username)
+			.join(', ') + (otherMembers.length > 3 ? ` +${otherMembers.length - 3}` : '');
+
+		return json({
+			channel: {
+				...newChannel,
+				name,
+				image: null,
+				members: memberUsers,
+				kind: 'channel',
+				lastMessage: null,
+				lastMessageAt: null
+			}
+		});
+	}
+
+	// ---- Create a direct chat ----
+	const { targetUserId } = body;
+
+	if (!targetUserId) throw error(400, 'targetUserId is required');
+
+	if (userId === targetUserId) throw error(400, 'Cannot chat with yourself');
+
 	if (!isHeadAdmin) {
+		// Check if they are friends (only friends can start a DM, unless Head Admin)
 		const isFriends = await db
 			.select()
 			.from(friendship)
