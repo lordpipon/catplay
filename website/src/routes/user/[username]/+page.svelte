@@ -26,9 +26,7 @@
 		ClockIcon,
 		UserGroupIcon,
 		Globe02Icon,
-		Locker01Icon,
-		ThumbsUpIcon,
-		ThumbsDownIcon
+		Locker01Icon
 	} from '@hugeicons/core-free-icons';
 	import { goto } from '$app/navigation';
 	import { USER_DATA } from '$lib/stores/user-data';
@@ -195,9 +193,7 @@
 	}
 
 	let followData = $state(profileData?.follow ?? null);
-	let feedback = $state(profileData?.feedback ?? null);
 	let followLoading = $state(false);
-	let voteLoading = $state(false);
 	let followDialogRelation = $state<'followers' | 'following' | null>(null);
 	let followDialogUsers = $state<any[]>([]);
 	let followDialogLoading = $state(false);
@@ -224,31 +220,6 @@
 			toast.error('Failed to update follow status');
 		} finally {
 			followLoading = false;
-		}
-	}
-
-	async function castVote(reaction: 'LIKE' | 'DISLIKE') {
-		if (!$USER_DATA || voteLoading) return;
-		voteLoading = true;
-		try {
-			const res = await fetch(`/api/user/${username}/reaction`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ reaction })
-			});
-			if (res.ok) {
-				const d = await res.json();
-				feedback = d.feedback;
-				haptic.trigger('light');
-				toast.success(reaction === 'LIKE' ? 'Upvoted' : 'Downvoted');
-			} else {
-				const d = await res.json();
-				toast.error(d.message || 'Failed to rate user');
-			}
-		} catch {
-			toast.error('Failed to rate user');
-		} finally {
-			voteLoading = false;
 		}
 	}
 
@@ -335,7 +306,6 @@
 				profileData = await response.json();
 				recentTransactions = profileData?.recentTransactions || [];
 				followData = profileData?.follow ?? followData;
-				feedback = profileData?.feedback ?? feedback;
 			} else {
 				toast.error('Failed to load profile data');
 			}
@@ -716,27 +686,29 @@
 									<b class="text-foreground">{followData.followingCount.toLocaleString()}</b>{' '}
 									Following
 								</button>
-								{#if feedback}
-									<span class="flex items-center gap-1">
-										<HugeiconsIcon
-											icon={ThumbsUpIcon}
-											class={feedback.likesCount > 0 ? 'text-green-500 h-4 w-4' : 'text-muted-foreground h-4 w-4'}
-										/>
-										{feedback.likesCount.toLocaleString()}
-									</span>
-									<span class="flex items-center gap-1">
-										<HugeiconsIcon
-											icon={ThumbsDownIcon}
-											class={feedback.dislikesCount > 0 ? 'text-red-500 h-4 w-4' : 'text-muted-foreground h-4 w-4'}
-										/>
-										{feedback.dislikesCount.toLocaleString()}
-									</span>
-								{/if}
 							</div>
 						{/if}
 					</div>
 					{#if $USER_DATA && !isOwnProfile}
-						<div class="flex flex-wrap items-center justify-end gap-2 self-start">
+						<div class="flex flex-wrap items-center justify-end gap-2 self-end">
+							<Tooltip.Provider>
+								<Tooltip.Root>
+									<Tooltip.Trigger>
+										<Button
+											variant={isBlocked ? 'outline' : 'ghost'}
+											size="icon"
+											onclick={toggleBlock}
+											disabled={blockLoading}
+											class="h-8 w-8 {isBlocked
+												? 'text-destructive'
+												: 'text-muted-foreground hover:text-destructive'}"
+										>
+											<HugeiconsIcon icon={UnavailableIcon} class="h-4 w-4" />
+										</Button>
+									</Tooltip.Trigger>
+									<Tooltip.Content>{isBlocked ? 'Unblock' : 'Block'}</Tooltip.Content>
+								</Tooltip.Root>
+							</Tooltip.Provider>
 							<Button
 								size="xs"
 								variant={followData?.isFollowing ? 'outline' : 'default'}
@@ -749,26 +721,6 @@
 								/>
 								{followData?.isFollowing ? 'Following' : (followLoading ? '…' : 'Follow')}
 							</Button>
-							<div class="flex items-center gap-1 rounded-lg border px-1 py-0.5">
-								<Button
-									size="xs"
-									variant="ghost"
-									class={feedback?.userReaction === 'LIKE' ? 'text-green-500 h-7 w-7' : 'text-muted-foreground h-7 w-7 hover:text-green-500'}
-									onclick={() => castVote('LIKE')}
-									disabled={voteLoading || !feedback}
-								>
-									<HugeiconsIcon icon={ThumbsUpIcon} class="h-4 w-4" />
-								</Button>
-								<Button
-									size="xs"
-									variant="ghost"
-									class={feedback?.userReaction === 'DISLIKE' ? 'text-red-500 h-7 w-7' : 'text-muted-foreground h-7 w-7 hover:text-red-500'}
-									onclick={() => castVote('DISLIKE')}
-									disabled={voteLoading || !feedback}
-								>
-									<HugeiconsIcon icon={ThumbsDownIcon} class="h-4 w-4" />
-								</Button>
-							</div>
 							{#if friendStatus?.status === 'accepted'}
 								<Button size="xs" variant="outline" onclick={startDM}>
 									<HugeiconsIcon icon={Message01Icon} class="h-3.5 w-3.5" />
@@ -854,25 +806,6 @@
 									Add Friend
 								</Button>
 							{/if}
-
-							<Tooltip.Provider>
-								<Tooltip.Root>
-									<Tooltip.Trigger>
-										<Button
-											variant={isBlocked ? 'outline' : 'ghost'}
-											size="icon"
-											onclick={toggleBlock}
-											disabled={blockLoading}
-											class="h-8 w-8 {isBlocked
-												? 'text-destructive'
-												: 'text-muted-foreground hover:text-destructive'}"
-										>
-											<HugeiconsIcon icon={UnavailableIcon} class="h-4 w-4" />
-										</Button>
-									</Tooltip.Trigger>
-									<Tooltip.Content>{isBlocked ? 'Unblock' : 'Block'}</Tooltip.Content>
-								</Tooltip.Root>
-							</Tooltip.Provider>
 						</div>
 					{/if}
 				</div>

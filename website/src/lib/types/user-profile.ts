@@ -111,11 +111,3 @@ export interface FollowPageData {
 	totalCount: number;
 	totalPages: number;
 }
-
-export type ProfileReaction = 'LIKE' | 'DISLIKE';
-
-export interface UserProfileFeedback {
-	likesCount: number;
-	dislikesCount: number;
-	userReaction: ProfileReaction | null;
-}
