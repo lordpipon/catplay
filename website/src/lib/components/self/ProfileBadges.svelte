@@ -8,7 +8,8 @@
 		StarIcon,
 		Rocket01Icon,
 		ChampionIcon,
-		BinaryCodeIcon
+		BinaryCodeIcon,
+		CrownIcon
 	} from '@hugeicons/core-free-icons';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { getPrestigeName, getPrestigeColor } from '$lib/utils';
@@ -101,5 +102,8 @@
 	{/if}
 	{#if hasFlag(user.flags, 'DEVELOPER_BADGE')}
 		<SilentBadge icon={BinaryCodeIcon} text="Developer" class="text-violet-400 {badgeClass}" />
+	{/if}
+	{#if hasFlag(user.flags, 'OWNER_BADGE')}
+		<SilentBadge icon={CrownIcon} text="Owner" class="text-amber-400 {badgeClass}" />
 	{/if}
 </div>

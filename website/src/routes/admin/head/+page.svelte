@@ -16,7 +16,8 @@
 		CrownIcon,
 		BinaryCodeIcon,
 		DiscordIcon,
-		StarIcon
+		StarIcon,
+		Rocket01Icon
 	} from '@hugeicons/core-free-icons';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
@@ -39,9 +40,9 @@
 	let vipUsername = $state('');
 	let vipLoading = $state(false);
 
-	// Developer Badge State
-	let devUsername = $state('');
-	let devLoading = $state(false);
+	// Special Badges State
+	let badgeUsername = $state('');
+	let badgeLoading = $state<'supporter' | 'developer' | 'owner' | null>(null);
 
 	// Prestige State
 	let prestigeUsername = $state('');
@@ -197,26 +198,27 @@
 		}
 	}
 
-	async function toggleDeveloper() {
-		if (!devUsername.trim()) return;
-		devLoading = true;
+	async function toggleBadge(badge: 'supporter' | 'developer' | 'owner') {
+		if (!badgeUsername.trim()) { toast.error('Enter a username first.'); return; }
+		badgeLoading = badge;
 		try {
-			const res = await fetch('/api/admin/users/toggle-developer', {
+			const res = await fetch('/api/admin/users/toggle-badge', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username: devUsername.trim() })
+				body: JSON.stringify({ username: badgeUsername.trim(), badge })
 			});
 			const data = await res.json();
 			if (res.ok) {
-				toast.success(`Developer badge ${data.isDeveloper ? 'granted' : 'revoked'} for @${data.username}`);
-				devUsername = '';
+				toast.success(
+					`${badge.charAt(0).toUpperCase() + badge.slice(1)} badge ${data.granted ? 'granted' : 'revoked'} for @${data.username}`
+				);
 			} else {
-				toast.error(data.message || 'Failed to toggle developer badge');
+				toast.error(data.message || 'Failed to toggle badge');
 			}
 		} catch {
-			toast.error('Failed to toggle developer badge');
+			toast.error('Failed to toggle badge');
 		} finally {
-			devLoading = false;
+			badgeLoading = null;
 		}
 	}
 
@@ -465,24 +467,45 @@
 				</Card.Content>
 			</Card.Root>
 
-			<Card.Root>
+			<Card.Root class="mt-4">
 				<Card.Header>
 					<Card.Title class="flex items-center gap-2">
-						<HugeiconsIcon icon={BinaryCodeIcon} class="h-5 w-5 text-violet-400" />
-						Developer Badge
+						<HugeiconsIcon icon={StarIcon} class="h-5 w-5 text-amber-400" />
+						Special Badges
 					</Card.Title>
+					<Card.Description>Grant or revoke cosmetic badges for a user.</Card.Description>
 				</Card.Header>
-				<Card.Content>
-					<div class="max-w-md flex gap-3">
-						<Input
-							bind:value={devUsername}
-							placeholder="Username (without @)"
-							class="flex-1"
-							onkeydown={(e) => { if (e.key === 'Enter') toggleDeveloper(); }}
-						/>
-						<Button onclick={toggleDeveloper} disabled={!devUsername.trim() || devLoading} class="bg-violet-500 text-white hover:bg-violet-600">
+				<Card.Content class="space-y-3">
+					<Input
+						bind:value={badgeUsername}
+						placeholder="Username (without @)"
+						class="max-w-md"
+						onkeydown={(e) => { if (e.key === 'Enter') toggleBadge('supporter'); }}
+					/>
+					<div class="flex flex-wrap gap-2">
+						<Button
+							onclick={() => toggleBadge('supporter')}
+							disabled={!badgeUsername.trim() || badgeLoading !== null}
+							class="bg-cyan-500 text-white hover:bg-cyan-600"
+						>
+							<HugeiconsIcon icon={Rocket01Icon} class="h-4 w-4" />
+							{badgeLoading === 'supporter' ? 'Toggling...' : 'Supporter'}
+						</Button>
+						<Button
+							onclick={() => toggleBadge('developer')}
+							disabled={!badgeUsername.trim() || badgeLoading !== null}
+							class="bg-violet-500 text-white hover:bg-violet-600"
+						>
 							<HugeiconsIcon icon={BinaryCodeIcon} class="h-4 w-4" />
-							{devLoading ? 'Toggling...' : 'Toggle Developer'}
+							{badgeLoading === 'developer' ? 'Toggling...' : 'Developer'}
+						</Button>
+						<Button
+							onclick={() => toggleBadge('owner')}
+							disabled={!badgeUsername.trim() || badgeLoading !== null}
+							class="bg-amber-500 text-white hover:bg-amber-600"
+						>
+							<HugeiconsIcon icon={CrownIcon} class="h-4 w-4" />
+							{badgeLoading === 'owner' ? 'Toggling...' : 'Owner'}
 						</Button>
 					</div>
 				</Card.Content>

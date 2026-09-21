@@ -10,7 +10,8 @@ export type AdminAction =
 	| 'PROMO_CREATE'
 	| 'PROMO_DELETE'
 	| 'TOGGLE_ADMIN'
-	| 'TOGGLE_DEVELOPER';
+	| 'TOGGLE_DEVELOPER'
+	| 'TOGGLE_BADGE';
 
 export async function writeAdminLog(
 	adminId: number,
