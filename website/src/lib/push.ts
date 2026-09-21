@@ -41,16 +41,41 @@ export async function ensurePushSubscription(): Promise<boolean> {
 	const registration = await getRegistration();
 	if (!registration) return false;
 
+	const publicKey = getVapidPublicKey();
+	if (!publicKey) return false;
+
+	const keyBuffer = urlBase64ToUint8Array(publicKey);
+
 	let subscription = await registration.pushManager.getSubscription();
+	if (subscription) {
+		// If the existing subscription was created with a different application
+		// server key (e.g. VAPID keys rotated), Chrome will refuse to reuse it.
+		try {
+			const existingKey = subscription.options?.applicationServerKey;
+			const existingBytes =
+				existingKey instanceof ArrayBuffer
+					? new Uint8Array(existingKey)
+					: ArrayBuffer.isView(existingKey)
+						? new Uint8Array(existingKey.buffer, existingKey.byteOffset, existingKey.byteLength)
+						: null;
+			const matchesKey =
+				existingBytes !== null &&
+				existingBytes.length === keyBuffer.length &&
+				existingBytes.every((b, i) => b === keyBuffer[i]);
+			if (!matchesKey) {
+				await subscription.unsubscribe();
+				subscription = null;
+			}
+		} catch (err) {
+			console.error('Failed to inspect existing push subscription:', err);
+		}
+	}
+
 	if (!subscription) {
 		const permission = await requestPermissionIfNeeded();
 		if (!permission) return false;
 
-		const publicKey = getVapidPublicKey();
-		if (!publicKey) return false;
-
 		try {
-			const keyBuffer = urlBase64ToUint8Array(publicKey);
 			subscription = await registration.pushManager.subscribe({
 				userVisibleOnly: true,
 				applicationServerKey: keyBuffer
@@ -62,13 +87,18 @@ export async function ensurePushSubscription(): Promise<boolean> {
 	}
 
 	try {
-		await fetch('/api/push/subscribe', {
+		const res = await fetch('/api/push/subscribe', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(subscription.toJSON())
 		});
+		if (!res.ok) {
+			console.error('Failed to save push subscription:', res.status, await res.text());
+			return false;
+		}
 	} catch (err) {
 		console.error('Failed to save push subscription:', err);
+		return false;
 	}
 	return true;
 }

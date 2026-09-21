@@ -1,7 +1,7 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, chatChannel, chatChannelMember, friendship } from '$lib/server/db/schema';
+import { user, chatChannel, chatChannelMember, chatChannelHidden, friendship } from '$lib/server/db/schema';
 import { eq, and, or, inArray, ne, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { RequestHandler } from './$types';
@@ -37,7 +37,21 @@ export const GET: RequestHandler = async ({ request }) => {
 		.select({ channelId: chatChannelMember.channelId })
 		.from(chatChannelMember)
 		.where(eq(chatChannelMember.userId, userId));
-	const groupChannelIds = groupRows.map((r) => r.channelId);
+	let groupChannelIds = groupRows.map((r) => r.channelId);
+
+	// Groups the user chose to hide ("delete from history") are filtered out of
+	// the list, but the user stays a member (messages still land if re-added).
+	if (groupChannelIds.length > 0) {
+		const hiddenRows = await db
+			.select({ channelId: chatChannelHidden.channelId })
+			.from(chatChannelHidden)
+			.where(eq(chatChannelHidden.userId, userId));
+		if (hiddenRows.length > 0) {
+			const hiddenIds = hiddenRows.map((r) => r.channelId);
+			const visible = groupChannelIds.filter((id) => !hiddenIds.includes(id));
+			groupChannelIds = visible;
+		}
+	}
 	if (groupChannelIds.length > 0) {
 		conditions.push(
 			and(eq(chatChannel.type, 'GROUP'), inArray(chatChannel.id, groupChannelIds))
@@ -364,6 +378,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const uniqueIds = Array.from(new Set(memberIds)).filter((m) => m !== userId);
 		if (uniqueIds.length < 2) throw error(400, 'Group chats need at least 2 other members');
+		if (uniqueIds.length + 1 > 10) throw error(400, 'Group chats are limited to 10 members');
 
 		if (!isHeadAdmin) {
 			// Only friends can be added to a group (not Head Admin)
@@ -392,7 +407,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const [newChannel] = await db
 			.insert(chatChannel)
-			.values({ type: 'GROUP' })
+			.values({ type: 'GROUP', ownerId: userId })
 			.returning();
 
 		await db.insert(chatChannelMember).values(

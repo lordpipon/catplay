@@ -299,6 +299,16 @@
 					toast.error('Could not enable push notifications. Please allow notification permission.');
 					return;
 				}
+				// Confirm the server actually recorded the subscription before
+				// showing success (the toggle must not lie).
+				const confirmed = await fetch('/api/push/status')
+					.then((res) => (res.ok ? res.json() : null))
+					.then((data) => !!(data && data.registered))
+					.catch(() => false);
+				if (!confirmed) {
+					toast.error('Push permission granted but the server could not save the subscription. Try again.');
+					return;
+				}
 			} else {
 				await disablePushNotifications();
 			}

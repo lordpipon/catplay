@@ -15,9 +15,10 @@ import {
 	session as sessionTable
 } from '$lib/server/db/schema';
 import { eq, and, lte } from 'drizzle-orm';
+import { SITE_NAME } from '$lib/site';
 
 function filename(userId: number) {
-	return `catplay-data-${userId}-${new Date().toISOString().split('T')[0]}.json`;
+	return `${SITE_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-data-${userId}-${new Date().toISOString().split('T')[0]}.json`;
 }
 
 export async function HEAD({ request }) {

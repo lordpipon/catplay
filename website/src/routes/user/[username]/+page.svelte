@@ -26,11 +26,14 @@
 		ClockIcon,
 		UserGroupIcon,
 		Globe02Icon,
-		Locker01Icon
+		Locker01Icon,
+		ThumbsUpIcon,
+		ThumbsDownIcon
 	} from '@hugeicons/core-free-icons';
 	import { goto } from '$app/navigation';
 	import { USER_DATA } from '$lib/stores/user-data';
 	import * as Tooltip from '$lib/components/ui/tooltip';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import { haptic } from '$lib/stores/haptics';
 	import { formatTimezone, getTimezoneDate } from '$lib/utils/timezones.js';
 	import { Message01Icon, UserAdd01Icon, UserCheck01Icon, UserRemove01Icon } from '@hugeicons/core-free-icons';
@@ -191,6 +194,91 @@
 		}
 	}
 
+	let followData = $state(profileData?.follow ?? null);
+	let feedback = $state(profileData?.feedback ?? null);
+	let followLoading = $state(false);
+	let voteLoading = $state(false);
+	let followDialogRelation = $state<'followers' | 'following' | null>(null);
+	let followDialogUsers = $state<any[]>([]);
+	let followDialogLoading = $state(false);
+	let followDialogPage = $state(1);
+	let followDialogTotal = $state(0);
+
+	async function toggleFollow() {
+		if (!$USER_DATA || followLoading) return;
+		followLoading = true;
+		try {
+			const res = await fetch(`/api/user/${username}/follow`, {
+				method: followData?.isFollowing ? 'DELETE' : 'POST'
+			});
+			if (res.ok) {
+				const d = await res.json();
+				followData = d.follow;
+				haptic.trigger(followData.isFollowing ? 'light' : 'medium');
+				toast.success(followData.isFollowing ? 'You followed this user' : 'Unfollowed');
+			} else {
+				const d = await res.json();
+				toast.error(d.message || 'Failed to update follow status');
+			}
+		} catch {
+			toast.error('Failed to update follow status');
+		} finally {
+			followLoading = false;
+		}
+	}
+
+	async function castVote(reaction: 'LIKE' | 'DISLIKE') {
+		if (!$USER_DATA || voteLoading) return;
+		voteLoading = true;
+		try {
+			const res = await fetch(`/api/user/${username}/reaction`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ reaction })
+			});
+			if (res.ok) {
+				const d = await res.json();
+				feedback = d.feedback;
+				haptic.trigger('light');
+				toast.success(reaction === 'LIKE' ? 'Upvoted' : 'Downvoted');
+			} else {
+				const d = await res.json();
+				toast.error(d.message || 'Failed to rate user');
+			}
+		} catch {
+			toast.error('Failed to rate user');
+		} finally {
+			voteLoading = false;
+		}
+	}
+
+	async function openFollowDialog(relation: 'followers' | 'following') {
+		followDialogRelation = relation;
+		followDialogUsers = [];
+		followDialogPage = 1;
+		followDialogTotal = 0;
+		await loadFollowPage(relation, 1);
+	}
+
+	async function loadFollowPage(relation: 'followers' | 'following', p: number) {
+		followDialogLoading = true;
+		try {
+			const res = await fetch(
+				`/api/user/${username}/follow?relation=${relation}&page=${p}&perPage=8`
+			);
+			if (res.ok) {
+				const d = await res.json();
+				followDialogUsers = p === 1 ? d.items : [...followDialogUsers, ...d.items];
+				followDialogPage = d.page;
+				followDialogTotal = d.totalCount;
+			}
+		} catch {
+			toast.error('Failed to load list');
+		} finally {
+			followDialogLoading = false;
+		}
+	}
+
 	async function startDM() {
 		if (!$USER_DATA) return;
 		try {
@@ -246,6 +334,8 @@
 			if (response.ok) {
 				profileData = await response.json();
 				recentTransactions = profileData?.recentTransactions || [];
+				followData = profileData?.follow ?? followData;
+				feedback = profileData?.feedback ?? feedback;
 			} else {
 				toast.error('Failed to load profile data');
 			}
@@ -608,9 +698,77 @@
 							<HugeiconsIcon icon={Calendar01Icon} class="h-4 w-4" />
 							<span>Joined {memberSince}</span>
 						</div>
+						{#if followData}
+							<div class="mt-3 flex items-center gap-4 text-sm">
+								<button
+									class="text-muted-foreground hover:text-foreground transition-colors"
+									onclick={() => openFollowDialog('followers')}
+									disabled={!isOwnProfile && !$USER_DATA}
+								>
+									<b class="text-foreground">{followData.followersCount.toLocaleString()}</b>{' '}
+									Followers
+								</button>
+								<button
+									class="text-muted-foreground hover:text-foreground transition-colors"
+									onclick={() => openFollowDialog('following')}
+									disabled={!isOwnProfile && !$USER_DATA}
+								>
+									<b class="text-foreground">{followData.followingCount.toLocaleString()}</b>{' '}
+									Following
+								</button>
+								{#if feedback}
+									<span class="flex items-center gap-1">
+										<HugeiconsIcon
+											icon={ThumbsUpIcon}
+											class={feedback.likesCount > 0 ? 'text-green-500 h-4 w-4' : 'text-muted-foreground h-4 w-4'}
+										/>
+										{feedback.likesCount.toLocaleString()}
+									</span>
+									<span class="flex items-center gap-1">
+										<HugeiconsIcon
+											icon={ThumbsDownIcon}
+											class={feedback.dislikesCount > 0 ? 'text-red-500 h-4 w-4' : 'text-muted-foreground h-4 w-4'}
+										/>
+										{feedback.dislikesCount.toLocaleString()}
+									</span>
+								{/if}
+							</div>
+						{/if}
 					</div>
 					{#if $USER_DATA && !isOwnProfile}
 						<div class="flex flex-wrap items-center justify-end gap-2 self-start">
+							<Button
+								size="xs"
+								variant={followData?.isFollowing ? 'outline' : 'default'}
+								onclick={toggleFollow}
+								disabled={followLoading || !followData}
+							>
+								<HugeiconsIcon
+									icon={followData?.isFollowing ? UserCheck01Icon : UserAdd01Icon}
+									class="h-3.5 w-3.5"
+								/>
+								{followData?.isFollowing ? 'Following' : (followLoading ? '…' : 'Follow')}
+							</Button>
+							<div class="flex items-center gap-1 rounded-lg border px-1 py-0.5">
+								<Button
+									size="xs"
+									variant="ghost"
+									class={feedback?.userReaction === 'LIKE' ? 'text-green-500 h-7 w-7' : 'text-muted-foreground h-7 w-7 hover:text-green-500'}
+									onclick={() => castVote('LIKE')}
+									disabled={voteLoading || !feedback}
+								>
+									<HugeiconsIcon icon={ThumbsUpIcon} class="h-4 w-4" />
+								</Button>
+								<Button
+									size="xs"
+									variant="ghost"
+									class={feedback?.userReaction === 'DISLIKE' ? 'text-red-500 h-7 w-7' : 'text-muted-foreground h-7 w-7 hover:text-red-500'}
+									onclick={() => castVote('DISLIKE')}
+									disabled={voteLoading || !feedback}
+								>
+									<HugeiconsIcon icon={ThumbsDownIcon} class="h-4 w-4" />
+								</Button>
+							</div>
 							{#if friendStatus?.status === 'accepted'}
 								<Button size="xs" variant="outline" onclick={startDM}>
 									<HugeiconsIcon icon={Message01Icon} class="h-3.5 w-3.5" />
@@ -1009,3 +1167,51 @@
 		</Card.Root>
 	{/if}
 </div>
+
+<Dialog.Root open={followDialogRelation !== null} onOpenChange={(o) => { if (!o) followDialogRelation = null; }}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>
+				{followDialogRelation === 'followers' ? `Followers` : `Following`} ({followDialogTotal})
+			</Dialog.Title>
+		</Dialog.Header>
+		<div class="max-h-80 space-y-1.5 overflow-y-auto pr-1">
+			{#if followDialogLoading && followDialogUsers.length === 0}
+				<p class="text-muted-foreground py-8 text-center text-sm">Loading…</p>
+			{:else if followDialogUsers.length === 0}
+				<p class="text-muted-foreground py-8 text-center text-sm">No users yet.</p>
+			{:else}
+				{#each followDialogUsers as u (u.id)}
+					<button
+						class="flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all hover:bg-muted/50"
+						onclick={() => {
+							followDialogRelation = null;
+							goto(`/user/${u.username}`);
+						}}
+					>
+						<Avatar.Root class="size-9">
+							<Avatar.Image src={getPublicUrl(u.image)} alt={u.name} />
+							<Avatar.Fallback>{u.name.charAt(0).toUpperCase()}</Avatar.Fallback>
+						</Avatar.Root>
+						<div class="min-w-0 flex-1">
+							<p class="truncate text-sm font-semibold">{u.name}</p>
+							<p class="text-muted-foreground truncate text-xs">@{u.username}</p>
+						</div>
+					</button>
+				{/each}
+				{#if followDialogUsers.length < followDialogTotal}
+					<div class="flex justify-center pt-1">
+						<Button
+							size="sm"
+							variant="outline"
+							onclick={() => loadFollowPage(followDialogRelation!, followDialogPage + 1)}
+							disabled={followDialogLoading}
+						>
+							{followDialogLoading ? 'Loading…' : 'Load more'}
+						</Button>
+					</div>
+				{/if}
+			{/if}
+		</div>
+	</Dialog.Content>
+</Dialog.Root>

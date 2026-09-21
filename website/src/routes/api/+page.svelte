@@ -661,9 +661,9 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
       "aiResolution": null,
       "creator": {
         "id": 3873,
-        "name": "Eliaz",
-        "username": "eluskulus",
-        "image": "avatars/102644133851219200932.png"
+        "name": "Example",
+        "username": "example_user",
+        "image": "avatars/example.png"
       },
       "userBets": null
     }
@@ -738,9 +738,9 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
     "aiResolution": null,
     "creator": {
       "id": 3873,
-      "name": "Eliaz",
-      "username": "eluskulus",
-      "image": "avatars/102644133851219200932.png"
+      "name": "Example",
+      "username": "example_user",
+      "image": "avatars/example.png"
     },
     "userBets": null,
     "recentBets": [
@@ -751,9 +751,9 @@ curl -H "Authorization: Bearer ctpl_yourkey" \\
         "createdAt": "2025-06-25T14:59:54.201Z",
         "user": {
           "id": 5332,
-          "name": "Spam email inhaler",
-          "username": "sunny_tiger7616",
-          "image": "avatars/111376429189149628011.webp"
+          "name": "Example",
+          "username": "example_bettor",
+          "image": "avatars/example_bettor.webp"
         }
       }
     ]

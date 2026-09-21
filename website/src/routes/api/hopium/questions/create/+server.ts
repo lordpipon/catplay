@@ -41,8 +41,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	const now = new Date();
 
 	try {
-		const result = await db.transaction(async (tx) => {
-			// Check user balance
+		// Phase 1: quick pre-checks (balance + hourly cap). Runs fast, no AI involved.
+		await db.transaction(async (tx) => {
 			const [userData] = await tx
 				.select({ baseCurrencyBalance: user.baseCurrencyBalance })
 				.from(user)
@@ -71,68 +71,91 @@ export const POST: RequestHandler = async ({ request }) => {
 			if (Number(recentQuestions.count) >= MAX_QUESTIONS_PER_HOUR) {
 				throw new Error(`You can only create ${MAX_QUESTIONS_PER_HOUR} questions per hour`);
 			}
-
-			const validation = await validateQuestion(question);
-
-			if (!validation.isValid) {
-				throw new Error(`Question validation failed: ${validation.reason}`);
-			}
-
-			// Use AI suggested date or default fallback
-			let finalResolutionDate: Date;
-
-			if (
-				validation.suggestedResolutionDate &&
-				!isNaN(validation.suggestedResolutionDate.getTime())
-			) {
-				finalResolutionDate = validation.suggestedResolutionDate;
-			} else {
-				// Fallback: 24 hours from now
-				finalResolutionDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-				console.warn(
-					'Using fallback resolution date (24h), AI suggested:',
-					validation.suggestedResolutionDate
-				);
-			}
-
-			// Validate the final date is within acceptable bounds
-			const minResolutionDate = new Date(now.getTime() + MIN_RESOLUTION_HOURS * 60 * 60 * 1000);
-			const maxResolutionDate = new Date(now.getTime() + MAX_RESOLUTION_DAYS * 24 * 60 * 60 * 1000);
-
-			if (finalResolutionDate < minResolutionDate) {
-				finalResolutionDate = minResolutionDate;
-			} else if (finalResolutionDate > maxResolutionDate) {
-				finalResolutionDate = maxResolutionDate;
-			}
-
-			// Create question
-			const [newQuestion] = await tx
-				.insert(predictionQuestion)
-				.values({
-					creatorId: userId,
-					question: question.trim(),
-					resolutionDate: finalResolutionDate,
-					requiresWebSearch: validation.requiresWebSearch,
-					validationReason: validation.reason
-				})
-				.returning();
-
-			return json({
-				success: true,
-				question: {
-					id: newQuestion.id,
-					question: newQuestion.question,
-					resolutionDate: newQuestion.resolutionDate,
-					requiresWebSearch: newQuestion.requiresWebSearch
-				}
-			});
 		});
+
+		// Phase 2: create the question immediately with sensible defaults —
+		// the user isn't blocked on the AI validator. Full AI validation runs in
+		// the background and refines the date/flags or cancels the question.
+		const coinSymbols = extractCoinSymbols(cleaned);
+		const minResolutionDate = new Date(now.getTime() + MIN_RESOLUTION_HOURS * 60 * 60 * 1000);
+		const maxResolutionDate = new Date(now.getTime() + MAX_RESOLUTION_DAYS * 24 * 60 * 60 * 1000);
+		const defaultResolutionDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+		const [newQuestion] = await db
+			.insert(predictionQuestion)
+			.values({
+				creatorId: userId,
+				question: cleaned,
+				resolutionDate: defaultResolutionDate,
+				requiresWebSearch: coinSymbols.length === 0,
+				validationReason: 'Validation in progress'
+			})
+			.returning();
 
 		checkAndAwardAchievements(userId, ['hopium']);
 
-		return result;
+		void validateQuestionInBackground(newQuestion.id, cleaned);
+
+		return json({
+			success: true,
+			question: {
+				id: newQuestion.id,
+				question: newQuestion.question,
+				resolutionDate: newQuestion.resolutionDate,
+				requiresWebSearch: newQuestion.requiresWebSearch
+			}
+		});
 	} catch (e) {
 		console.error('Question creation error:', e);
 		return json({ error: (e as Error).message }, { status: 400 });
 	}
 };
+
+// Local heuristic: questions that don't reference a platform coin usually need
+// external (web) data to be resolved.
+const COIN_SYMBOL_RE = /\*([A-Z]{2,10})(?![A-Z])/g;
+function extractCoinSymbols(text: string): string[] {
+	return [...new Set([...text.toUpperCase().matchAll(COIN_SYMBOL_RE)].map((m) => m[1]))];
+}
+
+function clampResolutionDate(date: Date, min: Date, max: Date): Date {
+	if (date < min) return min;
+	if (date > max) return max;
+	return date;
+}
+
+async function validateQuestionInBackground(questionId: number, question: string) {
+	try {
+		const validation = await validateQuestion(question);
+
+		if (!validation.isValid) {
+			await db
+				.update(predictionQuestion)
+				.set({ status: 'CANCELLED', validationReason: validation.reason })
+				.where(eq(predictionQuestion.id, questionId));
+			console.log(`Question ${questionId} cancelled by background validation: ${validation.reason}`);
+			return;
+		}
+
+		const suggested =
+			validation.suggestedResolutionDate &&
+			!isNaN(validation.suggestedResolutionDate.getTime())
+				? validation.suggestedResolutionDate
+				: null;
+
+		const min = new Date(Date.now() + MIN_RESOLUTION_HOURS * 60 * 60 * 1000);
+		const max = new Date(Date.now() + MAX_RESOLUTION_DAYS * 24 * 60 * 60 * 1000);
+		const fallback = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+		await db
+			.update(predictionQuestion)
+			.set({
+				resolutionDate: suggested ? clampResolutionDate(suggested, min, max) : fallback,
+				requiresWebSearch: validation.requiresWebSearch,
+				validationReason: validation.reason
+			})
+			.where(eq(predictionQuestion.id, questionId));
+	} catch (error) {
+		console.error('Background question validation failed:', error);
+	}
+}

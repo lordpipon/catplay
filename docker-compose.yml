@@ -54,9 +54,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_USER: catuser
-      POSTGRES_PASSWORD: irenatomas1852
-      POSTGRES_DB: catplay
+      POSTGRES_USER: ${POSTGRES_USER:-catuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}
+      POSTGRES_DB: ${POSTGRES_DB:-catplay}
 
 networks:
   shared_backend:

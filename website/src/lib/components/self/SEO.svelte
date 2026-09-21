@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { SITE_NAME, SITE_ORIGIN } from '$lib/site';
 
 	let {
-		title = 'Catplay',
+		title = SITE_NAME,
 		description = 'Experience realistic cryptocurrency trading simulation game with AI-powered markets, rug pull mechanics, and virtual currencies. Learn crypto trading without financial risk in this educational game.',
 		type = 'website',
 		image = '/apple-touch-icon.png',
-		imageAlt = 'Catplay Logo',
+		imageAlt = `${SITE_NAME} Logo`,
 		keywords = '',
-		author = 'Catplay',
+		author = SITE_NAME,
 		canonicalUrl = '',
 		noindex = false,
 		twitterCard = 'summary_large_image'
@@ -29,7 +30,7 @@
 	let canonical = $derived(canonicalUrl || currentUrl);
 
 	let fullImageUrl = $derived(
-		image?.startsWith('http') ? image : `${$page?.url?.origin || 'https://catplay.org'}${image}`
+		image?.startsWith('http') ? image : `${$page?.url?.origin || SITE_ORIGIN}${image}`
 	);
 
 	let defaultKeywords =
@@ -62,7 +63,7 @@
 	<meta property="og:url" content={currentUrl} />
 	<meta property="og:image" content={fullImageUrl} />
 	<meta property="og:image:alt" content={imageAlt} />
-	<meta property="og:site_name" content="Catplay" />
+	<meta property="og:site_name" content={SITE_NAME} />
 	<meta property="og:locale" content="en_US" />
 
 	<!-- Twitter Card Meta Tags -->
@@ -74,8 +75,8 @@
 
 	<!-- Additional Meta Tags -->
 	<meta name="theme-color" content="#ffffff" />
-	<meta name="application-name" content="Catplay" />
-	<meta name="apple-mobile-web-app-title" content="Catplay" />
+	<meta name="application-name" content={SITE_NAME} />
+	<meta name="apple-mobile-web-app-title" content={SITE_NAME} />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 </svelte:head>

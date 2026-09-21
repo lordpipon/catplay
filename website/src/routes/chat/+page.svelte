@@ -8,7 +8,15 @@
 	import * as Avatar from '$lib/components/ui/avatar';
 	import { toast } from 'svelte-sonner';
 	import { USER_DATA } from '$lib/stores/user-data';
-	import { CHAT_MESSAGES, setChatMessages, CHAT_UNREAD, clearChatUnread } from '$lib/stores/chat';
+	import {
+		CHAT_MESSAGES,
+		setChatMessages,
+		CHAT_UNREAD,
+		clearChatUnread,
+		ACTIVE_CHANNEL_ID,
+		REMOVED_CHAT_CHANNEL,
+		handleChatChannelRemoved
+	} from '$lib/stores/chat';
 	import { getPublicUrl, formatDate } from '$lib/utils';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
@@ -17,8 +25,12 @@
 		Message01Icon,
 		ArrowLeft01Icon,
 		Search01Icon,
-		SendToMobileIcon,
-		UserGroupIcon
+		ArrowUp01Icon,
+		UserGroupIcon,
+		PlusSignIcon,
+		UserRemove01Icon,
+		Delete01Icon,
+		Settings01Icon
 	} from '@hugeicons/core-free-icons';
 
 	interface ChatChannel {
@@ -26,6 +38,7 @@
 		type: string;
 		user1Id: number | null;
 		user2Id: number | null;
+		ownerId?: number | null;
 		createdAt: string;
 		name: string;
 		image: string | null;
@@ -47,6 +60,11 @@
 
 	let showCreateGroup = $state(false);
 	let creatingGroup = $state(false);
+
+	let showManageGroup = $state(false);
+	let removingMemberId = $state<number | null>(null);
+	let deletingGroup = $state(false);
+	let groupActionPending = $state(false);
 
 	let activeChannel = $derived(channels.find((c) => c.id === activeChannelId));
 	let messages = $derived($CHAT_MESSAGES[activeChannelId as number] || []);
@@ -82,14 +100,23 @@
 			return;
 		}
 
+		myUserId = Number($USER_DATA?.id);
 		await fetchChannels();
 
 		const channelQuery = $page.url.searchParams.get('channel');
+		const userQuery = $page.url.searchParams.get('user');
 		if (channelQuery) {
 			const id = parseInt(channelQuery);
 			const target = channels.find((c) => c.id === id);
 			if (target && target.kind === 'channel') {
 				selectChannel(id);
+			}
+		} else if (userQuery) {
+			// "Message" button from the friends page: open a DM with that friend.
+			const uid = parseInt(userQuery);
+			const target = channels.find((c) => c.kind === 'friend' && c.partnerId === uid);
+			if (target) {
+				await openChat(target);
 			}
 		} else if (channels.length > 0) {
 			selectChannel(channels[0].id!);
@@ -126,6 +153,7 @@
 
 	async function selectChannel(id: number) {
 		activeChannelId = id;
+		ACTIVE_CHANNEL_ID.set(id);
 		clearChatUnread(id);
 		const url = new URL(window.location.href);
 		url.searchParams.set('channel', id.toString());
@@ -199,7 +227,22 @@
 
 	function goBackToList() {
 		activeChannelId = null;
+		ACTIVE_CHANNEL_ID.set(null);
 	}
+
+	// When the websocket reports a removed channel (group deleted / member kicked),
+	// drop it from the sidebar and close it if it was open.
+	$effect(() => {
+		const removedId = $REMOVED_CHAT_CHANNEL;
+		if (removedId != null) {
+			channels = channels.filter((c) => c.id !== removedId);
+			if (activeChannelId === removedId) {
+				ACTIVE_CHANNEL_ID.set(null);
+				activeChannelId = null;
+			}
+			REMOVED_CHAT_CHANNEL.set(null);
+		}
+	});
 
 	function substringFor(c: ChatChannel): string {
 		return c.name?.charAt(c.name?.startsWith('@') ? 1 : 0)?.toUpperCase() || '?';
@@ -228,7 +271,7 @@
 	// Friends available to add to a new group:
 	// - virtual friend entries (no DM channel yet)
 	// - DM partners who already have a DIRECT channel
-	let myUserId = $derived(Number($USER_DATA?.id));
+	let myUserId = $state(0);
 	let groupFriendOptions = $derived.by(() => {
 		const opt = new Map<number, string>();
 		for (const c of channels) {
@@ -285,6 +328,103 @@
 			creatingGroup = false;
 		}
 	}
+
+	async function kickMember(memberId: number) {
+		if (!activeChannelId || removingMemberId !== null) return;
+		if (!confirm('Remove this member from the group?')) return;
+		removingMemberId = memberId;
+		try {
+			const res = await fetch(`/api/chat/channels/${activeChannelId}/members/${memberId}`, {
+				method: 'DELETE'
+			});
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.message || d.error || 'Failed to remove member');
+				return;
+			}
+			toast.success('Member removed');
+			await fetchChannels();
+		} catch (e) {
+			toast.error('Network error');
+		} finally {
+			removingMemberId = null;
+		}
+	}
+
+	async function deleteGroup() {
+		if (!activeChannelId || !activeChannel || deletingGroup) return;
+		if (!confirm(`Permanently delete "${activeChannel.name}" for everyone? This cannot be undone.`))
+			return;
+		deletingGroup = true;
+		try {
+			const res = await fetch(`/api/chat/channels/${activeChannelId}`, { method: 'DELETE' });
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.message || d.error || 'Failed to delete group');
+				return;
+			}
+			showManageGroup = false;
+			toast.success('Group deleted');
+			ACTIVE_CHANNEL_ID.set(null);
+			activeChannelId = null;
+			await fetchChannels();
+		} catch (e) {
+			toast.error('Network error');
+		} finally {
+			deletingGroup = false;
+		}
+	}
+
+	async function hideGroup() {
+		if (!activeChannelId || groupActionPending) return;
+		groupActionPending = true;
+		try {
+			const res = await fetch(`/api/chat/channels/${activeChannelId}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'hide' })
+			});
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.message || d.error || 'Failed to hide group');
+				return;
+			}
+			showManageGroup = false;
+			toast.success('Group hidden from your list (you stay a member)');
+			handleChatChannelRemoved(activeChannelId!);
+			await fetchChannels();
+		} catch (e) {
+			toast.error('Network error');
+		} finally {
+			groupActionPending = false;
+		}
+	}
+
+	async function leaveGroup() {
+		if (!activeChannelId || groupActionPending) return;
+		if (!confirm('Leave this group? You can only come back if someone adds you again.')) return;
+		groupActionPending = true;
+		try {
+			const res = await fetch(`/api/chat/channels/${activeChannelId}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'leave' })
+			});
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.message || d.error || 'Failed to leave group');
+				return;
+			}
+			showManageGroup = false;
+			toast.success('You left the group');
+			handleChatChannelRemoved(activeChannelId!);
+			await fetchChannels();
+		} catch (e) {
+			toast.error('Network error');
+		} finally {
+			groupActionPending = false;
+		}
+	}
 </script>
 
 <SEO
@@ -311,26 +451,27 @@
 				: 'w-full md:w-[340px]'} py-0"
 		>
 			<div class="border-b p-3">
-				<div class="relative">
-					<HugeiconsIcon
-						icon={Search01Icon}
-						class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-					/>
-					<Input
-						bind:value={searchQuery}
-						placeholder="Search chats and friends..."
-						class="bg-muted/50 rounded-full pl-9"
-					/>
-				</div>
-				<div class="mt-2 flex justify-end">
+				<div class="flex items-center gap-2">
+					<div class="relative flex-1">
+						<HugeiconsIcon
+							icon={Search01Icon}
+							class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+						/>
+						<Input
+							bind:value={searchQuery}
+							placeholder="Search chats and friends..."
+							class="bg-muted/50 rounded-full pl-9"
+						/>
+					</div>
 					<Button
-						size="xs"
+						size="icon"
 						variant="outline"
-						class="gap-1 text-xs"
+						class="h-8 w-8 shrink-0 rounded-full"
+						title="New group chat"
+						aria-label="New group chat"
 						onclick={() => (showCreateGroup = true)}
 					>
-						<HugeiconsIcon icon={UserGroupIcon} class="h-3.5 w-3.5" />
-						New group
+						<HugeiconsIcon icon={PlusSignIcon} class="h-4 w-4" />
 					</Button>
 				</div>
 			</div>
@@ -439,6 +580,17 @@
 										: activeChannel.type?.replace('_', ' ')}
 						</div>
 					</div>
+					{#if isGroup(activeChannel) && activeChannel.members?.some((m) => m.id === myUserId)}
+						<Button
+							size="xs"
+							variant="outline"
+							class="ml-auto shrink-0 gap-1"
+							onclick={() => (showManageGroup = true)}
+						>
+							<HugeiconsIcon icon={Settings01Icon} class="h-3.5 w-3.5" />
+							Manage
+						</Button>
+					{/if}
 				</div>
 
 				<div class="flex flex-1 flex-col gap-3 overflow-y-auto p-4" bind:this={scrollViewport}>
@@ -480,7 +632,7 @@
 
 				<div class="shrink-0 border-t p-3">
 					<form
-						class="flex gap-2"
+						class="flex items-center gap-2"
 						onsubmit={(e) => {
 							e.preventDefault();
 							sendMessage();
@@ -493,14 +645,14 @@
 							autocomplete="off"
 							class="flex-1 rounded-full"
 						/>
-						<Button
+						<button
 							type="submit"
+							aria-label="Send message"
 							disabled={!messageInput.trim() || sending}
-							class="gap-1.5 rounded-full px-6"
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
 						>
-							<HugeiconsIcon icon={SendToMobileIcon} class="h-4 w-4" />
-							Send
-						</Button>
+							<HugeiconsIcon icon={ArrowUp01Icon} class="h-5 w-5" />
+						</button>
 					</form>
 				</div>
 			{:else}
@@ -524,7 +676,7 @@
 				New group chat
 			</Dialog.Title>
 			<Dialog.Description>
-				Pick 2+ friends to start a group chat. Members are added when you create it.
+				Pick 2–9 friends to start a group chat (max 10 members).
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="max-h-[45vh] overflow-y-auto px-6">
@@ -579,13 +731,103 @@
 			>
 				Cancel
 			</Button>
-			<Button
-				onclick={createGroup}
-				disabled={selectedGroupFriends.length < 2 || creatingGroup}
-				class="gap-1.5"
-			>
-				<HugeiconsIcon icon={UserGroupIcon} class="h-4 w-4" />
-				{creatingGroup ? 'Creating...' : `Create group (${selectedGroupFriends.length})`}
+<Button
+			onclick={createGroup}
+			disabled={selectedGroupFriends.length < 2 || selectedGroupFriends.length > 9 || creatingGroup}
+			class="gap-1.5"
+		>
+			<HugeiconsIcon icon={UserGroupIcon} class="h-4 w-4" />
+			{creatingGroup ? 'Creating...' : `Create group (${selectedGroupFriends.length})`}
+		</Button>
+	</Dialog.Footer>
+</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={showManageGroup}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title class="flex items-center gap-2">
+				<HugeiconsIcon icon={Settings01Icon} class="h-5 w-5" />
+				Manage group
+			</Dialog.Title>
+			{#if activeChannel?.ownerId === myUserId}
+				<Dialog.Description>
+					You're the owner of this group. Members you remove can't see it anymore.
+				</Dialog.Description>
+			{:else}
+				<Dialog.Description>
+					You can leave this group, or hide it from your chat list (you stay a member).
+				</Dialog.Description>
+			{/if}
+		</Dialog.Header>
+		<div class="flex max-h-[45vh] flex-col gap-1 overflow-y-auto px-6">
+			{#each activeChannel?.members ?? [] as member (member.id)}
+				<div class="hover:bg-muted flex items-center gap-3 rounded-xl p-2">
+					<Avatar.Root class="h-8 w-8 shrink-0 border">
+						{#if member.image}
+							<Avatar.Image src={getPublicUrl(member.image)} />
+						{/if}
+						<Avatar.Fallback class="text-xs"
+							>{member.username?.charAt(0)?.toUpperCase() || '?'}</Avatar.Fallback
+						>
+					</Avatar.Root>
+					<div class="min-w-0 flex-1 truncate text-sm font-medium">
+						@{member.username}
+						{#if member.id === myUserId}
+							<span class="text-muted-foreground text-xs">(you)</span>
+						{:else if member.id === activeChannel?.ownerId}
+							<span class="text-muted-foreground text-xs">(owner)</span>
+						{/if}
+					</div>
+					{#if activeChannel?.ownerId === myUserId && member.id !== activeChannel.ownerId}
+						<Button
+							size="xs"
+							variant="ghost"
+							class="text-destructive shrink-0 gap-1"
+							disabled={removingMemberId !== null}
+							onclick={() => kickMember(member.id)}
+						>
+							<HugeiconsIcon icon={UserRemove01Icon} class="h-3.5 w-3.5" />
+							{removingMemberId === member.id ? 'Removing...' : 'Remove'}
+						</Button>
+					{/if}
+				</div>
+			{/each}
+		</div>
+		<Dialog.Footer class="flex items-center justify-between gap-2">
+			{#if activeChannel?.ownerId === myUserId}
+				<Button
+					variant="destructive"
+					class="shrink-0 gap-1.5"
+					disabled={deletingGroup || !activeChannel}
+					onclick={deleteGroup}
+				>
+					<HugeiconsIcon icon={Delete01Icon} class="h-4 w-4" />
+					{deletingGroup ? 'Deleting...' : 'Delete group'}
+				</Button>
+			{:else}
+				<div class="flex gap-2">
+					<Button
+						variant="outline"
+						class="gap-1.5"
+						disabled={groupActionPending}
+						onclick={hideGroup}
+					>
+						{groupActionPending ? 'Working...' : 'Delete from history'}
+					</Button>
+					<Button
+						variant="destructive"
+						class="gap-1.5"
+						disabled={groupActionPending}
+						onclick={leaveGroup}
+					>
+						<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
+						Leave group
+					</Button>
+				</div>
+			{/if}
+			<Button variant="outline" onclick={() => (showManageGroup = false)}>
+				Close
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>

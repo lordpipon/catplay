@@ -8,11 +8,10 @@
 		name: string;
 		nameColor?: string | null;
 		username?: string | null;
-		founderBadge?: boolean;
 		class?: string;
 	}
 
-	let { name, nameColor = null, username = null, founderBadge = false, class: className = '' }: Props = $props();
+	let { name, nameColor = null, username = null, class: className = '' }: Props = $props();
 
 	let colorItem = $derived(nameColor ? getColorByKey(nameColor) : null);
 	let isVip = $derived(username ? $VIP_USERS.has(username.toLowerCase()) : false);
@@ -28,8 +27,5 @@
 	{/if}
 	{#if isVip}
 		<SilentBadge icon={CrownIcon} text="VIP" class="-m-0.5 text-yellow-400 [&_svg]:h-3.5 [&_svg]:w-3.5" />
-	{/if}
-	{#if founderBadge}
-		<span title="Founder" class="text-xs font-bold text-cyan-400">◆</span>
 	{/if}
 </span>

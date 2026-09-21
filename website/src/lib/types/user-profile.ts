@@ -1,3 +1,15 @@
+import type { SeasonTrophyTier } from '$lib/data/seasons';
+
+export interface SeasonTrophyEntry {
+	seasonId: number;
+	seasonNumber: number;
+	seasonName: string;
+	rank: number;
+	tier: SeasonTrophyTier;
+	score: number;
+	awardedAt: Date;
+}
+
 export interface UserProfile {
 	id: number;
 	name: string;
@@ -15,6 +27,17 @@ export interface UserProfile {
 
 	arcadeWins: number;
 	arcadeLosses: number;
+
+	halloweenBadge2026?: boolean;
+	bestTrophy?: {
+		rank: number;
+		tier: SeasonTrophyTier;
+		seasonNumber: number;
+		seasonName: string;
+		entrants: number;
+	} | null;
+	trophyCount?: number;
+	seasonTrophies?: SeasonTrophyEntry[];
 }
 
 export interface UserStats {
@@ -60,4 +83,39 @@ export interface UserProfileData {
 	stats: UserStats;
 	createdCoins: CreatedCoin[];
 	recentTransactions: RecentTransaction[];
+}
+
+export interface FollowUser {
+	id: number;
+	name: string;
+	username: string;
+	image: string | null;
+	createdAt: Date;
+}
+
+export interface UserFollowData {
+	followersCount: number;
+	followingCount: number;
+	followers: FollowUser[];
+	following: FollowUser[];
+	isFollowing: boolean;
+}
+
+export type FollowRelation = 'followers' | 'following';
+
+export interface FollowPageData {
+	relation: FollowRelation;
+	items: FollowUser[];
+	page: number;
+	perPage: number;
+	totalCount: number;
+	totalPages: number;
+}
+
+export type ProfileReaction = 'LIKE' | 'DISLIKE';
+
+export interface UserProfileFeedback {
+	likesCount: number;
+	dislikesCount: number;
+	userReaction: ProfileReaction | null;
 }

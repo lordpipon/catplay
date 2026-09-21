@@ -4,6 +4,7 @@ import { pushSubscription, notificationTypeEnum } from './db/schema';
 import { env } from '$env/dynamic/private';
 import { env as publicEnv } from '$env/dynamic/public';
 import { eq } from 'drizzle-orm';
+import { CONTACT_EMAIL } from '../site';
 
 type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
 
@@ -13,7 +14,7 @@ function ensureConfigured() {
 	if (configured) return;
 	const publicKey = publicEnv.PUBLIC_VAPID_PUBLIC_KEY;
 	const privateKey = env.VAPID_PRIVATE_KEY;
-	const subject = env.VAPID_SUBJECT ?? 'mailto:admin@catplay.org';
+	const subject = env.VAPID_SUBJECT ?? `mailto:${CONTACT_EMAIL}`;
 	if (!publicKey || !privateKey) {
 		console.warn('VAPID keys not configured; push notifications disabled.');
 		return;

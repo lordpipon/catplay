@@ -17,6 +17,29 @@ export const CHAT_MESSAGES = writable<Record<number, ChatMessage[]>>({});
 export const CHAT_UNREAD = writable<Record<number, number>>({});
 export const CHAT_UNREAD_COUNT = writable<number>(0);
 
+// Channel the user is currently viewing (from the chat page)
+export const ACTIVE_CHANNEL_ID = writable<number | null>(null);
+
+// Channel that was just removed (group deleted / member kicked) — the chat page
+// watches this to drop it from the UI immediately.
+export const REMOVED_CHAT_CHANNEL = writable<number | null>(null);
+
+export function handleChatChannelRemoved(channelId: number) {
+	CHAT_MESSAGES.update((messages) => {
+		const next = { ...messages };
+		delete next[channelId];
+		return next;
+	});
+	CHAT_UNREAD.update((counts) => {
+		const next = { ...counts };
+		delete next[channelId];
+		const total = Object.values(next).reduce((sum, n) => sum + n, 0);
+		CHAT_UNREAD_COUNT.set(total);
+		return next;
+	});
+	REMOVED_CHAT_CHANNEL.set(channelId);
+}
+
 export function incrementChatUnread(channelId: number) {
 	CHAT_UNREAD.update((counts) => ({
 		...counts,

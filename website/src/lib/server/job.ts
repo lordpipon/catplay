@@ -11,13 +11,50 @@ import {
 	commentLike,
 	comment,
 	transaction,
-	coin
+	coin,
+	globalSetting
 } from '$lib/server/db/schema';
 import { eq, and, lte, isNull } from 'drizzle-orm';
 import { resolveQuestion, getCatplayData } from '$lib/server/ai';
 import { createNotification } from '$lib/server/notification';
 import { formatValue } from '$lib/utils';
+import { UserFlags } from '$lib/data/flags';
 import { env } from '$env/dynamic/private';
+
+const BOOTSTRAP_MARKER = 'bootstrap_admin_done';
+
+export async function bootstrapFirstAdmin() {
+	const email = (env.BOOTSTRAP_ADMIN_EMAIL ?? '').trim().toLowerCase();
+	if (!email) return;
+
+	try {
+		const [marker] = await db.select().from(globalSetting).where(eq(globalSetting.key, BOOTSTRAP_MARKER));
+		if (marker) return;
+
+		const [candidate] = await db
+			.select({ id: user.id, flags: user.flags })
+			.from(user)
+			.where(eq(user.email, email))
+			.limit(1);
+		if (!candidate) return; // account not created yet; retry next tick
+
+		const needed = UserFlags.IS_HEAD_ADMIN | UserFlags.IS_ADMIN;
+		if ((BigInt(candidate.flags ?? 0) & needed) !== needed) {
+			await db
+				.update(user)
+				.set({ flags: BigInt(candidate.flags ?? 0n) | needed })
+				.where(eq(user.id, candidate.id));
+			console.log(`[bootstrap] Granted head admin to ${email}`);
+		}
+
+		await db.insert(globalSetting).values({
+			key: BOOTSTRAP_MARKER,
+			value: new Date().toISOString()
+		});
+	} catch (error) {
+		console.error('[bootstrap] Failed to bootstrap first admin:', error);
+	}
+}
 
 export async function resolveExpiredQuestions() {
 	const now = new Date();

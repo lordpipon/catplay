@@ -1,12 +1,13 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, chatChannel, chatChannelMember, chatMessage, friendship, userBlock } from '$lib/server/db/schema';
+import { user, chatChannel, chatChannelMember, chatChannelHidden, chatMessage, friendship, userBlock } from '$lib/server/db/schema';
 import { eq, and, or, desc, inArray, sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { hasFlag } from '$lib/data/flags';
 import { redis } from '$lib/server/redis';
 import { encryptMessage, decryptMessage, isEncrypted } from '$lib/server/encryption';
+import { createNotification } from '$lib/server/notification';
 
 async function verifyChannelAccess(channelId: number, userId: number, flags: bigint) {
 	const [channel] = await db
@@ -198,6 +199,29 @@ export const POST: RequestHandler = async ({ request, params }) => {
 		}
 	};
 
+	// DM notifications: only for one-on-one DMs (NOT the public Global chat).
+	// Creates an in-app notification (bottom-right toast + bell) and a web push.
+	if (channel.type === 'DIRECT' && channel.user1Id && channel.user2Id) {
+		const otherId = channel.user1Id === userId ? channel.user2Id : channel.user1Id;
+		if (otherId) {
+			try {
+				const senderUsername =
+					((session.user as any)?.username as string | undefined) || session.user.name || 'Someone';
+				const preview = trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
+				await createNotification(
+					String(otherId),
+					'DM',
+					`New message from @${senderUsername}`,
+					preview,
+					`/chat?channel=${channelId}`,
+					{ channelId }
+				);
+			} catch (e) {
+				console.error('Failed to create DM notification:', e);
+			}
+		}
+	}
+
 	// Determine who needs to receive this message via websocket
 	const targetUserIds = new Set<number>();
 
@@ -234,7 +258,16 @@ export const POST: RequestHandler = async ({ request, params }) => {
 			.select({ userId: chatChannelMember.userId })
 			.from(chatChannelMember)
 			.where(eq(chatChannelMember.channelId, channelId));
+		const hiddenUserIds = new Set(
+			(
+				await db
+					.select({ userId: chatChannelHidden.userId })
+					.from(chatChannelHidden)
+					.where(eq(chatChannelHidden.channelId, channelId))
+			).map((r) => r.userId)
+		);
 		for (const m of members) {
+			if (hiddenUserIds.has(m.userId)) continue;
 			await redis.publish(`chat:${m.userId}`, JSON.stringify(payload));
 		}
 	} else {

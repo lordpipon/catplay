@@ -8,7 +8,9 @@ import {
 	comment,
 	predictionQuestion,
 	predictionBet,
-	userInventory
+	userInventory,
+	seasonParticipant,
+	seasonTrophy
 } from './db/schema';
 import { eq, and, sql, count, gte, gt, ne } from 'drizzle-orm';
 import { ACHIEVEMENTS_MAP, ACHIEVEMENTS } from '$lib/data/achievements';
@@ -45,6 +47,11 @@ export interface AchievementContext {
 
 	// Crate context
 	cratesOpened?: number;
+
+	// Season context
+	seasonJoined?: boolean;
+	seasonGrowth?: number;
+	seasonFinalRank?: number;
 }
 
 export async function checkAndAwardAchievements(
@@ -570,6 +577,46 @@ async function checkAchievement(
 			return userData.createdAt <= sixMonthsAgo;
 		}
 
+		// SEASONS
+		case 'season_entry':
+			return ctx.seasonJoined === true;
+
+		case 'season_double':
+			return (ctx.seasonGrowth ?? 0) >= 2;
+
+		case 'season_10x':
+			return (ctx.seasonGrowth ?? 0) >= 10;
+
+		case 'season_100x':
+			return (ctx.seasonGrowth ?? 0) >= 100;
+
+		case 'season_podium':
+			return (ctx.seasonFinalRank ?? Infinity) <= 3;
+
+		case 'season_champion':
+			return ctx.seasonFinalRank === 1;
+
+		case 'season_underdog':
+			return (ctx.seasonFinalRank ?? Infinity) <= 10;
+
+		case 'season_dynasty': {
+			const [result] = await db
+				.select({ wins: count() })
+				.from(seasonTrophy)
+				.where(and(eq(seasonTrophy.userId, userId), eq(seasonTrophy.rank, 1)));
+			return Number(result.wins) >= 2;
+		}
+
+		case 'season_regular':
+		case 'season_veteran': {
+			const target = achievementId === 'season_regular' ? 3 : 10;
+			const [result] = await db
+				.select({ seasons: count() })
+				.from(seasonParticipant)
+				.where(eq(seasonParticipant.userId, userId));
+			return Number(result.seasons) >= target;
+		}
+
 		default:
 			return false;
 	}
@@ -842,6 +889,18 @@ export async function getAchievementProgress(userId: number): Promise<Record<str
 			) sub
 		`);
 		progress['true_dedication'] = Number((dedicationResult as any)[0]?.best ?? 0);
+
+		const [seasonWins] = await db
+			.select({ wins: count() })
+			.from(seasonTrophy)
+			.where(and(eq(seasonTrophy.userId, userId), eq(seasonTrophy.rank, 1)));
+		const [seasonCount] = await db
+			.select({ seasons: count() })
+			.from(seasonParticipant)
+			.where(eq(seasonParticipant.userId, userId));
+		progress['season_dynasty'] = Number(seasonWins.wins);
+		progress['season_regular'] = Number(seasonCount.seasons);
+		progress['season_veteran'] = Number(seasonCount.seasons);
 	} catch (e) {
 		console.error('Achievement progress error:', e);
 	}

@@ -1,9 +1,11 @@
 import { auth } from '$lib/auth';
-import { resolveExpiredQuestions, processAccountDeletions } from '$lib/server/job';
+import { resolveExpiredQuestions, processAccountDeletions, bootstrapFirstAdmin } from '$lib/server/job';
+import { rolloverSeasons } from '$lib/server/seasons';
+import { syncDiscordChangelog } from '$lib/server/discord-changelog';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { redis } from '$lib/server/redis';
 import { building } from '$app/environment';
-import { redirect, type Handle } from '@sveltejs/kit';
+import { redirect, type Handle, type RequestEvent } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { user, gemTransactions } from '$lib/server/db/schema';
 import { eq, sql } from 'drizzle-orm';
@@ -11,6 +13,41 @@ import { minesCleanupInactiveGames, minesAutoCashout } from '$lib/server/games/m
 import { towerCleanupInactiveGames } from '$lib/server/games/tower';
 import { chickenCleanupInactiveGames } from '$lib/server/games/chicken';
 import { hasFlag, UserFlags } from '$lib/data/flags';
+import { ensureProxyRangesLoaded } from '$lib/server/anti-abuse';
+
+function isHalloween2026() {
+	const now = Date.now();
+	const start = Date.UTC(2026, 9, 31, 0, 0, 0);
+	const end = Date.UTC(2026, 10, 1, 0, 0, 0);
+	return now >= start && now < end;
+}
+
+async function resolveUsernameOrEmail(event: RequestEvent) {
+	const { request } = event;
+	if (request.method !== 'POST' || !event.url.pathname.endsWith('/sign-in/email')) return;
+	const contentType = request.headers.get('content-type') ?? '';
+	if (!contentType.includes('application/json')) return;
+	let body: Record<string, unknown>;
+	try {
+		body = await request.json();
+	} catch {
+		return;
+	}
+	const identifier = typeof body.email === 'string' ? body.email.trim() : '';
+	if (!identifier || identifier.includes('@')) return;
+	const [match] = await db
+		.select({ email: user.email })
+		.from(user)
+		.where(eq(sql`lower(${user.username})`, identifier.toLowerCase()))
+		.limit(1);
+	if (!match) return;
+	body.email = match.email;
+	event.request = new Request(request.url, {
+		method: request.method,
+		headers: request.headers,
+		body: JSON.stringify(body)
+	});
+}
 
 async function initializeScheduler() {
 	if (building) return;
@@ -50,11 +87,17 @@ async function initializeScheduler() {
 
 			resolveExpiredQuestions().catch(console.error);
 			processAccountDeletions().catch(console.error);
+			rolloverSeasons().catch(console.error);
+			syncDiscordChangelog().catch(console.error);
+			bootstrapFirstAdmin().catch(console.error);
 
 			const schedulerInterval = setInterval(
 				() => {
 					resolveExpiredQuestions().catch(console.error);
 					processAccountDeletions().catch(console.error);
+					rolloverSeasons().catch(console.error);
+					syncDiscordChangelog().catch(console.error);
+					bootstrapFirstAdmin().catch(console.error);
 				},
 				5 * 60 * 1000
 			);
@@ -89,6 +132,7 @@ async function initializeScheduler() {
 }
 
 initializeScheduler();
+ensureProxyRangesLoaded().catch((e) => console.error('Failed to load proxy ranges:', e));
 
 const sessionCache = new Map<
 	string,
@@ -149,11 +193,20 @@ export const handle: Handle = async ({ event, resolve }) => {
 					nameColor: user.nameColor,
 					prestigeLevel: user.prestigeLevel,
 					disableMentions: user.disableMentions,
-					timezone: user.timezone
+					timezone: user.timezone,
+					halloweenBadge2026: user.halloweenBadge2026
 				})
 				.from(user)
 				.where(eq(user.id, Number(userId)))
 				.limit(1);
+
+			if (userRecord && !userRecord.halloweenBadge2026 && isHalloween2026()) {
+				await db
+					.update(user)
+					.set({ halloweenBadge2026: true })
+					.where(eq(user.id, userRecord.id));
+				userRecord.halloweenBadge2026 = true;
+			}
 
 			if (userRecord?.isBanned) {
 				try {
@@ -214,6 +267,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.userSession = userData;
 
 	if (event.url.pathname.startsWith('/api/') && !event.url.pathname.startsWith('/api/proxy/')) {
+		await resolveUsernameOrEmail(event);
 		const response = await svelteKitHandler({ event, resolve, auth, building: false });
 		response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
 

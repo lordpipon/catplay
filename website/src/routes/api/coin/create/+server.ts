@@ -2,7 +2,7 @@ import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { coin, user, priceHistory } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, count, eq, gte } from 'drizzle-orm';
 import { uploadCoinIcon } from '$lib/server/s3';
 import {
 	CREATION_FEE,
@@ -98,6 +98,36 @@ export async function POST({ request }) {
 
 		if (!userData) {
 			throw error(404, 'User not found');
+		}
+
+		// Rate limits: block bot spam-minting. Checked under the row lock so
+		// concurrent create requests serialize and can't race past the limits.
+		const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+		const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+		const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+		const [recentWindow] = await tx
+			.select({ c: count() })
+			.from(coin)
+			.where(and(eq(coin.creatorId, userId), gte(coin.createdAt, twoMinutesAgo)));
+		if (Number(recentWindow.c) >= 1) {
+			throw error(429, 'Please wait a couple minutes before creating another coin');
+		}
+
+		const [recentHour] = await tx
+			.select({ c: count() })
+			.from(coin)
+			.where(and(eq(coin.creatorId, userId), gte(coin.createdAt, hourAgo)));
+		if (Number(recentHour.c) >= 5) {
+			throw error(429, 'Coin creation limit: 5 coins per hour');
+		}
+
+		const [recentDay] = await tx
+			.select({ c: count() })
+			.from(coin)
+			.where(and(eq(coin.creatorId, userId), gte(coin.createdAt, dayAgo)));
+		if (Number(recentDay.c) >= 10) {
+			throw error(429, 'Coin creation limit: 10 coins per day');
 		}
 
 		const currentBalance = Number(userData.baseCurrencyBalance);

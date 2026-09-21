@@ -7,7 +7,7 @@
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { toast } from 'svelte-sonner';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { UserAdd01Icon, UserCheck01Icon, Cancel01Icon } from '@hugeicons/core-free-icons';
+	import { UserAdd01Icon, UserCheck01Icon, Cancel01Icon, Message01Icon } from '@hugeicons/core-free-icons';
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { goto } from '$app/navigation';
 	import { getPublicUrl } from '$lib/utils';
@@ -34,8 +34,8 @@
 		// "other" is the user who is NOT me
 		const otherIsRequester = f.requesterId !== myId;
 		return otherIsRequester
-			? { name: f.requesterName, username: f.requesterUsername, image: f.requesterImage }
-			: { name: f.addresseeName, username: f.addresseeUsername, image: f.addresseeImage };
+			? { id: f.requesterId, name: f.requesterName, username: f.requesterUsername, image: f.requesterImage }
+			: { id: f.addresseeId, name: f.addresseeName, username: f.addresseeUsername, image: f.addresseeImage };
 	}
 
 	onMount(async () => {
@@ -82,6 +82,11 @@
 		if (r.ok) { toast.success(action === 'accept' ? 'Friend added!' : 'Removed'); await loadFriends(); }
 		else toast.error('Failed');
 	}
+
+	function removeFriend(f: Friend) {
+		if (!confirm('Remove this friend? Your private chat with them will also be deleted.')) return;
+		respond(f, 'remove');
+	}
 </script>
 
 <SEO title="Friends | Catplay" description="Manage your friends and messages." />
@@ -125,17 +130,30 @@
 				{#each accepted as f}
 					{@const other = getFriendUser(f)}
 					<Card.Root>
-						<Card.Content class="p-3 flex items-center gap-3">
-							<Avatar.Root class="h-9 w-9">
+						<Card.Content class="flex items-center gap-2.5 p-2">
+							<Avatar.Root class="h-8 w-8 shrink-0">
 								<Avatar.Image src={getPublicUrl(other.image)} alt={other.name} />
 								<Avatar.Fallback>{other.name?.[0]}</Avatar.Fallback>
 							</Avatar.Root>
-							<div class="flex-1">
-								<p class="font-medium text-sm">{other.name}</p>
-								<p class="text-muted-foreground text-xs">@{other.username}</p>
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium">{other.name}</p>
+								<p class="text-muted-foreground truncate text-xs">@{other.username}</p>
 							</div>
-							<Button size="sm" variant="ghost" class="text-red-400 hover:text-red-300" onclick={() => respond(f, 'remove')}>
-								<HugeiconsIcon icon={Cancel01Icon} class="h-4 w-4" />
+							<Button
+								size="xs"
+								variant="outline"
+								title="Message"
+								onclick={() => goto(`/chat?user=${other.id}`)}
+							>
+								<HugeiconsIcon icon={Message01Icon} class="h-3.5 w-3.5" />
+							</Button>
+							<Button
+								size="xs"
+								variant="ghost"
+								class="text-red-400 hover:text-red-300"
+								onclick={() => removeFriend(f)}
+							>
+								<HugeiconsIcon icon={Cancel01Icon} class="h-3.5 w-3.5" />
 							</Button>
 						</Card.Content>
 					</Card.Root>
@@ -150,20 +168,29 @@
 				{#each incoming as f}
 					{@const other = getFriendUser(f)}
 					<Card.Root>
-						<Card.Content class="p-3 flex items-center gap-3">
-							<Avatar.Root class="h-9 w-9">
+						<Card.Content class="flex items-center gap-2.5 p-2">
+							<Avatar.Root class="h-8 w-8 shrink-0">
 								<Avatar.Image src={getPublicUrl(other.image)} />
 								<Avatar.Fallback>{other.name?.[0]}</Avatar.Fallback>
 							</Avatar.Root>
-							<div class="flex-1">
-								<p class="font-medium text-sm">{other.name}</p>
-								<p class="text-muted-foreground text-xs">@{other.username}</p>
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium">{other.name}</p>
+								<p class="text-muted-foreground truncate text-xs">@{other.username}</p>
 							</div>
-							<Button size="sm" class="bg-green-600 hover:bg-green-500" onclick={() => respond(f, 'accept')}>
-								<HugeiconsIcon icon={UserCheck01Icon} class="h-4 w-4 mr-1" />Accept
+							<Button
+								size="xs"
+								class="bg-green-600 hover:bg-green-500"
+								onclick={() => respond(f, 'accept')}
+							>
+								<HugeiconsIcon icon={UserCheck01Icon} class="mr-1 h-3.5 w-3.5" />Accept
 							</Button>
-							<Button size="sm" variant="ghost" class="text-red-400" onclick={() => respond(f, 'decline')}>
-								<HugeiconsIcon icon={Cancel01Icon} class="h-4 w-4" />
+							<Button
+								size="xs"
+								variant="ghost"
+								class="text-red-400"
+								onclick={() => respond(f, 'decline')}
+							>
+								<HugeiconsIcon icon={Cancel01Icon} class="h-3.5 w-3.5" />
 							</Button>
 						</Card.Content>
 					</Card.Root>
@@ -174,16 +201,23 @@
 				{#each outgoing as f}
 					{@const other = getFriendUser(f)}
 					<Card.Root>
-						<Card.Content class="p-3 flex items-center gap-3">
-							<Avatar.Root class="h-9 w-9">
+						<Card.Content class="flex items-center gap-2.5 p-2">
+							<Avatar.Root class="h-8 w-8 shrink-0">
 								<Avatar.Image src={getPublicUrl(other.image)} />
 								<Avatar.Fallback>{other.name?.[0]}</Avatar.Fallback>
 							</Avatar.Root>
-							<div class="flex-1">
-								<p class="font-medium text-sm">{other.name}</p>
-								<p class="text-muted-foreground text-xs">@{other.username} · waiting for response</p>
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium">{other.name}</p>
+								<p class="text-muted-foreground truncate text-xs">@{other.username} · waiting for response</p>
 							</div>
-							<Button size="sm" variant="ghost" class="text-red-400" onclick={() => respond(f, 'remove')}>Cancel</Button>
+							<Button
+								size="xs"
+								variant="ghost"
+								class="text-red-400"
+								onclick={() => respond(f, 'remove')}
+							>
+								Cancel
+							</Button>
 						</Card.Content>
 					</Card.Root>
 				{/each}

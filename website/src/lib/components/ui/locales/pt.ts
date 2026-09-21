@@ -49,9 +49,11 @@ export default {
     lottery: "Loteria",
     live_trades: "Negociações ao vivo",
     settings: "Configurações",
+    season: "Temporada",
     admin: {
       main: "Admin",
       promo: "Promo Codes",
+      seasons: "Temporadas",
     },
   },
   main: {
@@ -333,7 +335,7 @@ export default {
     send_money: {
       title: "Enviar Moeda",
       send: ["Enviar", "Enviando..."],
-      description: "Envie dinheiro, moedas ou gems para outro usuário",
+      description: "Envie dinheiro ou moedas para outro usuário",
       recipient: ["Destinatário", "Digite o username (sem o @)"],
       type: [
         "Tipo",

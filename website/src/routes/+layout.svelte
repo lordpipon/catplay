@@ -6,6 +6,8 @@
 
 	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
 	import PasswordSetupPrompt from '$lib/components/self/PasswordSetupPrompt.svelte';
+	import AdBanner from '$lib/components/self/AdBanner.svelte';
+	import AdSidePanels from '$lib/components/self/AdSidePanels.svelte';
 
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { onMount, untrack } from 'svelte';
@@ -13,10 +15,12 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { page } from '$app/state';
 	import { websocketController } from '$lib/stores/websocket';
+	import { initAds, ADS } from '$lib/stores/ads';
 import { startVipUserPolling } from '$lib/stores/vip-users';
 	import { dev } from '$app/environment';
 	import { RenderScan } from 'svelte-render-scan';
 	import { _ } from 'svelte-i18n';
+	import { SITE_NAME } from '$lib/site';
 
 	let { data, children } = $props<{
 		data: { userSession?: any };
@@ -31,6 +35,7 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 	onMount(() => {
 		websocketController.connect();
 		startVipUserPolling();
+		initAds();
 
 		// Register service worker (for web push) silently; no permission prompt here.
 		if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -68,7 +73,7 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 			'color: #4962ee; font-family: monospace; font-size: 12px; font-weight: bold; text-shadow: 2px 2px rgba(0,0,0,0.2);'
 		);
 		console.log(
-			'%c Welcome to Catplay! DO NOT FUCKING PASTE ANYTHING IN THE CONSOLE UNLESS YOU KNOW WHAT YOU ARE DOING.',
+			`%c Welcome to ${SITE_NAME}! DO NOT FUCKING PASTE ANYTHING IN THE CONSOLE UNLESS YOU KNOW WHAT YOU ARE DOING.`,
 			'color: #4962ee; font-family: monospace; font-size: 12px; font-weight: bold; text-shadow: 2px 2px rgba(0,0,0,0.2);'
 		);
 		console.log(
@@ -89,13 +94,14 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 	});
 
 	function getPageTitle(routeId: string | null): string {
-		if (!routeId) return 'Catplay';
+		if (!routeId) return SITE_NAME;
 
 		const titleMap: Record<string, string> = {
 			'/': $_('page_names.home'),
 			'/market': $_('page_names.market'),
 			'/portfolio': $_('page_names.portfolio'),
 			'/leaderboard': $_('page_names.leaderboard'),
+			'/season': $_('page_names.season'),
 			'/coin/create': $_('page_names.create_coin'),
 			'/settings': $_('page_names.settings'),
 			'/admin': $_('page_names.admin.main'),
@@ -108,7 +114,7 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 			'/live': $_('page_names.live_trades'),
 			'/treemap': $_('page_names.treemap'),
 			'/about': $_('page_names.about'),
-			'/ads': 'Support Xprism',
+			'/ads': SITE_NAME,
 			'/legal/privacy': 'Privacy Policy',
 			'/legal/terms': 'Terms of Service',
 			'/shop': $_('page_names.shop')
@@ -125,13 +131,16 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 			return 'Prediction Question';
 		}
 
-		return titleMap[routeId] || 'Catplay';
+		return titleMap[routeId] || SITE_NAME;
 	}
 </script>
 
 <!-- <RenderScan /> -->
 <ModeWatcher />
 <Toaster richColors={true} />
+
+<AdSidePanels hideAds={$USER_DATA?.hideAds} />
+<AdBanner hideAds={$USER_DATA?.hideAds} ads={$ADS} />
 
 <Sidebar.Provider>
 	<AppSidebar />

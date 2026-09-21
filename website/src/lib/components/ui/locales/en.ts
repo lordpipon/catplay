@@ -49,9 +49,11 @@ export default {
 		lottery: 'Lottery',
 		live_trades: 'Live Trades',
 		settings: 'Settings',
+		season: 'Season',
 		admin: {
 			main: 'Admin',
-			promo: 'Promo Codes'
+			promo: 'Promo Codes',
+			seasons: 'Seasons'
 		}
 	},
 	main: {
@@ -419,7 +421,7 @@ export default {
 		send_money: {
 			title: 'Send Currency',
 			send: ['Send', 'Sending...'],
-			description: 'Send cash, coins, or gems to another user',
+			description: 'Send cash or coins to another user',
 			recipient: ['Recipient', 'Enter username (without @)'],
 			type: ['Type', 'Cash ($)', 'Coins', 'Gems', 'Select transfer type'],
 			cash: [

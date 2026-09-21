@@ -9,7 +9,8 @@
 		Ticket01Icon,
 		ArrowRight01Icon,
 		UserGroupIcon,
-		Analytics01Icon
+		Analytics01Icon,
+		PodiumIcon
 	} from '@hugeicons/core-free-icons';
 	import { goto } from '$app/navigation';
 	import { hasFlag } from '$lib/data/flags';
@@ -28,6 +29,13 @@
 			icon: Ticket01Icon,
 			url: '/admin/promo',
 			color: 'text-green-500'
+		},
+		{
+			title: 'Seasons',
+			description: 'Schedule seasons and choose their cover images.',
+			icon: PodiumIcon,
+			url: '/admin/seasons',
+			color: 'text-yellow-500'
 		},
 		{
 			title: 'Admin Logs',

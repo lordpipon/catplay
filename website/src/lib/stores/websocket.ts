@@ -1,10 +1,10 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { PUBLIC_WEBSOCKET_URL } from '$env/static/public';
 import { NOTIFICATIONS, UNREAD_COUNT } from './notifications';
 import { NEW_ACHIEVEMENTS_COUNT } from './achievements';
 import { USER_DATA } from './user-data';
-import { addChatMessage, CHAT_UNREAD_COUNT } from './chat';
+import { addChatMessage, incrementChatUnread, CHAT_UNREAD_COUNT, ACTIVE_CHANNEL_ID, handleChatChannelRemoved } from './chat';
 import { toast } from 'svelte-sonner';
 import { goto } from '$app/navigation';
 import { hasFlag, UserFlags } from '$lib/data/flags';
@@ -307,7 +307,20 @@ function handleWebSocketMessage(event: MessageEvent): void {
 					content: message.data.content,
 					createdAt: message.data.createdAt
 				});
-				incrementChatUnread(message.data.channelId);
+				// Don't count unread for the channel currently open in the chat page.
+				if (get(ACTIVE_CHANNEL_ID) !== message.data.channelId) {
+					incrementChatUnread(message.data.channelId);
+				}
+				break;
+
+			case 'chat_channel_removed':
+				handleChatChannelRemoved(message.channelId);
+				if (get(ACTIVE_CHANNEL_ID) === message.channelId) {
+					toast.message('This chat is no longer available', {
+						description: 'The group was deleted or you were removed.',
+						duration: 5000
+					});
+				}
 				break;
 
 			case 'notification':
@@ -325,7 +338,21 @@ function handleWebSocketMessage(event: MessageEvent): void {
 				NOTIFICATIONS.update((notifications) => [notification, ...notifications]);
 				UNREAD_COUNT.update((count) => count + 1);
 
-				if (message.achievementIcon) {
+				if (message.notificationType === 'DM') {
+					// Only toast a DM notification if the user isn't already viewing that channel.
+					if (get(ACTIVE_CHANNEL_ID) !== message.channelId) {
+						toast.message(message.title, {
+							description: message.message,
+							action: {
+								label: 'Reply',
+								onClick: () => {
+									goto(message.link || `/chat?channel=${message.channelId}`);
+								}
+							},
+							duration: 5000
+						});
+					}
+				} else if (message.achievementIcon) {
 					NEW_ACHIEVEMENTS_COUNT.increment();
 					toast.success(message.title, {
 						description: message.message,

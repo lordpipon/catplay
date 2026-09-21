@@ -2,6 +2,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import DataTable from '$lib/components/self/DataTable.svelte';
+	import AdRectangle from '$lib/components/self/AdRectangle.svelte';
 	import LeaderboardSkeleton from '$lib/components/self/skeletons/LeaderboardSkeleton.svelte';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { onMount } from 'svelte';
@@ -312,6 +313,7 @@
 			</div>
 		</div>
 	</header>
+	<AdRectangle class="mb-6" />
 	{#if loading}
 		{#if searchQueryValue}
 			<LeaderboardSearchSkeleton />

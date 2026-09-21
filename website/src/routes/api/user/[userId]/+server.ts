@@ -1,9 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, coin, transaction, userPortfolio } from '$lib/server/db/schema';
+import { user, coin, transaction, userPortfolio, profileReaction } from '$lib/server/db/schema';
 import { eq, desc, sql, count, and, gte } from 'drizzle-orm';
+import { getUserTrophies, getBestTrophy } from '$lib/server/seasons';
+import { getFollowSummary } from '$lib/server/follows';
+import { auth } from '$lib/auth';
 
-export async function GET({ params }) {
+export async function GET({ params, request }) {
 	const { userId } = params;
 
 	if (!userId) {
@@ -29,7 +32,8 @@ export async function GET({ params }) {
 				arcadeLosses: true,
 				nameColor: true,
 				timezone: true,
-				flags: true
+				flags: true,
+				halloweenBadge2026: true
 			}
 		});
 
@@ -86,6 +90,9 @@ export async function GET({ params }) {
 			totalValue: holdingsValue
 		};
 
+		const seasonTrophies = await getUserTrophies(actualUserId);
+		const { bestTrophy, trophyCount } = await getBestTrophy(actualUserId);
+
 		const recentTransactions = await db
 			.select({
 				id: transaction.id,
@@ -135,12 +142,50 @@ export async function GET({ params }) {
 				and(eq(transaction.userId, actualUserId), gte(transaction.timestamp, twentyFourHoursAgo))
 			);
 
+		const requestSession = await auth.api.getSession({ headers: request.headers });
+		const sessionUserId = requestSession?.user ? Number(requestSession.user.id) : undefined;
+
+		const [follow, feedback] = await Promise.all([
+			getFollowSummary(actualUserId, sessionUserId),
+			(async () => {
+				const [reactionStats] = await db
+					.select({
+						likesCount: sql<number>`COALESCE(SUM(CASE WHEN ${profileReaction.reaction} = 'LIKE' THEN 1 ELSE 0 END), 0)`,
+						dislikesCount: sql<number>`COALESCE(SUM(CASE WHEN ${profileReaction.reaction} = 'DISLIKE' THEN 1 ELSE 0 END), 0)`
+					})
+					.from(profileReaction)
+					.where(eq(profileReaction.targetUserId, actualUserId));
+
+				const [existingReaction] = sessionUserId
+					? await db
+							.select({ reaction: profileReaction.reaction })
+							.from(profileReaction)
+							.where(
+								and(
+									eq(profileReaction.targetUserId, actualUserId),
+									eq(profileReaction.reactorUserId, sessionUserId)
+								)
+							)
+							.limit(1)
+					: [];
+
+				return {
+					likesCount: Number(reactionStats?.likesCount ?? 0),
+					dislikesCount: Number(reactionStats?.dislikesCount ?? 0),
+					userReaction: existingReaction?.reaction ?? null
+				};
+			})()
+		]);
+
 		return json({
 			profile: {
 				...userProfile,
 				baseCurrencyBalance,
 				totalPortfolioValue,
-				flags: userProfile.flags.toString()
+				flags: userProfile.flags.toString(),
+				bestTrophy,
+				trophyCount,
+				seasonTrophies
 			},
 			stats: {
 				totalPortfolioValue,
@@ -156,7 +201,9 @@ export async function GET({ params }) {
 				sellVolume24h: transactionStats24h[0]?.sellVolume24h || 0
 			},
 			createdCoins,
-			recentTransactions
+			recentTransactions,
+			follow,
+			feedback
 		});
 	} catch (e) {
 		console.error('Failed to fetch user profile:', e);

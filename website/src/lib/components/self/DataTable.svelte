@@ -129,8 +129,7 @@
 					image: rendered.image,
 					name: rendered.name,
 					username: rendered.username,
-					nameColor: rendered.nameColor,
-					founderBadge: rendered.founderBadge
+					nameColor: rendered.nameColor
 				};
 			}
 			if (typeof rendered === 'string') {
@@ -228,7 +227,6 @@
 														name={cellData.name}
 														nameColor={cellData.nameColor}
 														username={cellData.username}
-														founderBadge={cellData.founderBadge}
 														class="text-sm font-medium"
 													/>
 													<span class="text-muted-foreground text-xs">@{cellData.username}</span>
@@ -252,7 +250,6 @@
 												name={cellData.name}
 												nameColor={cellData.nameColor}
 												username={cellData.username}
-												founderBadge={cellData.founderBadge}
 												class="text-sm font-medium"
 											/>
 											<span class="text-muted-foreground text-xs">@{cellData.username}</span>

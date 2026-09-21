@@ -35,10 +35,20 @@ export const notificationTypeEnum = pgEnum('notification_type', [
 	'RUG_PULL',
 	'MENTION',
 	'BATTLEPASS',
-	'FRIEND'
+	'FRIEND',
+	'DM'
 ]);
 export const shopItemTypeEnum = pgEnum('shop_item_type', ['namecolor']);
 export const promoRewardTypeEnum = pgEnum('promo_reward_type', ['BASE_CURRENCY', 'GEMS']);
+export const seasonStatusEnum = pgEnum('season_status', ['UPCOMING', 'ACTIVE', 'ENDED']);
+export const seasonTrophyTierEnum = pgEnum('season_trophy_tier', [
+	'CHAMPION',
+	'RUNNER_UP',
+	'THIRD',
+	'TOP_10',
+	'TOP_100',
+	'PARTICIPANT'
+]);
 
 export const user = pgTable(
 	'user',
@@ -103,14 +113,18 @@ export const user = pgTable(
 		cratesOpened: integer('crates_opened').notNull().default(0),
 		gems: integer('gems').notNull().default(0),
 		nameColor: text('name_color'),
-		timezone: integer('timezone').default(0)
+		timezone: integer('timezone').default(0),
+		halloweenBadge2026: boolean('halloween_badge_2026').notNull().default(false),
+		signupIp: text('signup_ip'),
+		altWarning: text('alt_warning')
 	},
 	(table) => {
 		return {
 			usernameIdx: index('user_username_idx').on(table.username),
 			isBannedIdx: index('user_is_banned_idx').on(table.isBanned),
 			createdAtIdx: index('user_created_at_idx').on(table.createdAt),
-			updatedAtIdx: index('user_updated_at_idx').on(table.updatedAt)
+			updatedAtIdx: index('user_updated_at_idx').on(table.updatedAt),
+			signupIpIdx: index('user_signup_ip_idx').on(table.signupIp)
 		};
 	}
 );
@@ -544,12 +558,54 @@ export const userBlock = pgTable(
 	})
 );
 
+export const profileReactionTypeEnum = pgEnum('profile_reaction_type', ['LIKE', 'DISLIKE']);
+
+export const userFollow = pgTable(
+	'user_follow',
+	{
+		id: serial('id').primaryKey(),
+		followerId: integer('follower_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		followingId: integer('following_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		followerFollowingUnique: unique('user_follow_unique').on(table.followerId, table.followingId),
+		followerIdIdx: index('user_follow_follower_id_idx').on(table.followerId),
+		followingIdIdx: index('user_follow_following_id_idx').on(table.followingId),
+		noSelfFollow: check('no_self_follow', sql`follower_id != following_id`)
+	})
+);
+
+export const profileReaction = pgTable(
+	'profile_reaction',
+	{
+		reactorUserId: integer('reactor_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		targetUserId: integer('target_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		reaction: profileReactionTypeEnum('reaction').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.reactorUserId, table.targetUserId] }),
+		targetUserIdIdx: index('profile_reaction_target_user_id_idx').on(table.targetUserId),
+		noSelfReaction: check('no_self_profile_reaction', sql`reactor_user_id != target_user_id`)
+	})
+);
+
 export const adminActionEnum = pgEnum('admin_action', [
 	'BAN',
 	'UNBAN',
 	'PROMO_CREATE',
 	'PROMO_DELETE',
-	'TOGGLE_ADMIN'
+	'TOGGLE_ADMIN',
+	'TOGGLE_DEVELOPER'
 ]);
 
 export const adminLog = pgTable(
@@ -679,7 +735,8 @@ export const changelogEntry = pgTable(
 		content: text('content').notNull(),
 		tag: varchar('tag', { length: 50 }).default('update'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-		createdBy: integer('created_by').references(() => user.id, { onDelete: 'set null' })
+		createdBy: integer('created_by').references(() => user.id, { onDelete: 'set null' }),
+		discordMessageId: varchar('discord_message_id', { length: 255 })
 	},
 	(table) => ({
 		createdAtIdx: index('changelog_entry_created_at_idx').on(table.createdAt)
@@ -874,6 +931,7 @@ export const chatChannel = pgTable(
 		type: varchar('type', { length: 20 }).notNull().default('DIRECT'),
 		user1Id: integer('user1_id').references(() => user.id, { onDelete: 'cascade' }),
 		user2Id: integer('user2_id').references(() => user.id, { onDelete: 'cascade' }),
+		ownerId: integer('owner_id').references(() => user.id, { onDelete: 'cascade' }),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => ({
@@ -914,6 +972,26 @@ export const chatChannelMember = pgTable(
 		pk: primaryKey({ columns: [table.channelId, table.userId] }),
 		userIdIdx: index('chat_channel_member_user_idx').on(table.userId),
 		memberChannelIdx: index('chat_channel_member_channel_idx').on(table.channelId)
+	})
+);
+
+// Groups a user chose to hide ("delete from history"). The user stays a member but
+// the channel is filtered out of their chat list until they unhide/are re-added.
+export const chatChannelHidden = pgTable(
+	'chat_channel_hidden',
+	{
+		channelId: integer('channel_id')
+			.notNull()
+			.references(() => chatChannel.id, { onDelete: 'cascade' }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		hiddenAt: timestamp('hidden_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.channelId, table.userId] }),
+		userIdIdx: index('chat_channel_hidden_user_idx').on(table.userId),
+		channelIdx: index('chat_channel_hidden_channel_idx').on(table.channelId)
 	})
 );
 
@@ -975,5 +1053,101 @@ export const pushSubscription = pgTable(
 	(table) => ({
 		userIdIdx: index('push_subscription_user_id_idx').on(table.userId),
 		endpointUnique: unique('push_subscription_endpoint_unique').on(table.endpoint)
+	})
+);
+
+// ---- Ranked Seasons ----
+
+export const season = pgTable(
+	'season',
+	{
+		id: serial('id').primaryKey(),
+		number: integer('number').notNull().unique(),
+		name: varchar('name', { length: 80 }).notNull(),
+		backgroundImage: varchar('background_image', { length: 2048 }),
+		status: seasonStatusEnum('status').notNull().default('UPCOMING'),
+		startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+		endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+		rankedStake: decimal('ranked_stake', { precision: 30, scale: 8 }).notNull(),
+		endedAt: timestamp('ended_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		statusIdx: index('season_status_idx').on(table.status),
+		endsAtIdx: index('season_ends_at_idx').on(table.endsAt)
+	})
+);
+
+export const seasonParticipant = pgTable(
+	'season_participant',
+	{
+		id: serial('id').primaryKey(),
+		seasonId: integer('season_id')
+			.notNull()
+			.references(() => season.id, { onDelete: 'cascade' }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+		prestigeAtEntry: integer('prestige_at_entry').notNull().default(0),
+		scoreMultiplier: decimal('score_multiplier', { precision: 6, scale: 4 })
+			.notNull()
+			.default('1.0000'),
+		startingStake: decimal('starting_stake', { precision: 30, scale: 8 }).notNull(),
+		sacrificed: decimal('sacrificed', { precision: 30, scale: 8 }).notNull().default('0.00000000'),
+		finalScore: decimal('final_score', { precision: 42, scale: 8 }),
+		finalRank: integer('final_rank')
+	},
+	(table) => ({
+		seasonUserUnique: unique('season_participant_unique').on(table.seasonId, table.userId),
+		seasonIdIdx: index('season_participant_season_id_idx').on(table.seasonId),
+		userIdIdx: index('season_participant_user_id_idx').on(table.userId)
+	})
+);
+
+export const seasonTrophy = pgTable(
+	'season_trophy',
+	{
+		id: serial('id').primaryKey(),
+		seasonId: integer('season_id')
+			.notNull()
+			.references(() => season.id, { onDelete: 'cascade' }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		rank: integer('rank').notNull(),
+		tier: seasonTrophyTierEnum('tier').notNull(),
+		score: decimal('score', { precision: 42, scale: 8 }).notNull(),
+		awardedAt: timestamp('awarded_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		seasonUserUnique: unique('season_trophy_unique').on(table.seasonId, table.userId),
+		userIdIdx: index('season_trophy_user_id_idx').on(table.userId),
+		seasonIdIdx: index('season_trophy_season_id_idx').on(table.seasonId)
+	})
+);
+
+// ---- Advertisements (sponsored coin placements, paid in gems) ----
+
+export const advertisement = pgTable(
+	'advertisement',
+	{
+		id: serial('id').primaryKey(),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		coinId: integer('coin_id')
+			.notNull()
+			.references(() => coin.id, { onDelete: 'cascade' }),
+		durationHours: integer('duration_hours').notNull(),
+		totalCost: decimal('total_cost', { precision: 30, scale: 8 }).notNull(),
+		startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => ({
+		userIdIdx: index('advertisement_user_id_idx').on(table.userId),
+		coinIdIdx: index('advertisement_coin_id_idx').on(table.coinId),
+		expiresAtIdx: index('advertisement_expires_at_idx').on(table.expiresAt)
 	})
 );

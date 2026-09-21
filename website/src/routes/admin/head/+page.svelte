@@ -10,11 +10,12 @@
 		UserCheck01Icon,
 		Cancel01Icon,
 		Coins01Icon,
-		StarIcon,
 		Notification01Icon,
 		Delete01Icon,
 		GemIcon,
-		CrownIcon
+		CrownIcon,
+		BinaryCodeIcon,
+		DiscordIcon
 	} from '@hugeicons/core-free-icons';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
@@ -37,6 +38,10 @@
 	let vipUsername = $state('');
 	let vipLoading = $state(false);
 
+	// Developer Badge State
+	let devUsername = $state('');
+	let devLoading = $state(false);
+
 	// Prestige State
 	let prestigeUsername = $state('');
 	let prestigeLevel = $state('');
@@ -55,13 +60,6 @@
 	let removePortfolioSymbol = $state('');
 	let removePortfolioLoading = $state(false);
 
-	// Event State
-	let eventMultiplier = $state(1);
-	let eventLabel = $state('');
-	let eventActive = $state(false);
-	let eventEndsAt = $state('');
-	let eventLoading = $state(false);
-
 	// Changelog State
 	interface ChangelogEntry { id: number; title: string; content: string; tag: string; createdAt: string; }
 	let changelogEntries = $state<ChangelogEntry[]>([]);
@@ -69,6 +67,9 @@
 	let newContent = $state('');
 	let newTag = $state('update');
 	let changelogLoading = $state(false);
+	let webhookUrl = $state('');
+	let webhookConfigured = $state(false);
+	let webhookLoading = $state(false);
 
 	const TAGS = ['update', 'feature', 'fix', 'hotfix', 'event', 'maintenance'];
 	const TAG_COLORS: Record<string, string> = {
@@ -81,22 +82,51 @@
 	};
 
 	onMount(async () => {
-		// Load event settings
-		const evRes = await fetch('/api/admin/head/event');
-		if (evRes.ok) {
-			const d = await evRes.json();
-			eventMultiplier = d.multiplier;
-			eventLabel = d.label === 'Normal' ? '' : d.label;
-			eventActive = d.active;
-			eventEndsAt = d.endsAt ? d.endsAt.slice(0, 16) : '';
-		}
 		// Load changelog
 		await loadChangelog();
 	});
 
 	async function loadChangelog() {
 		const res = await fetch('/api/admin/head/changelog');
-		if (res.ok) changelogEntries = await res.json();
+		if (res.ok) {
+			const data = await res.json();
+			changelogEntries = data.entries || [];
+			webhookUrl = data.webhookUrl || '';
+			webhookConfigured = data.webhookConfigured || false;
+		}
+	}
+
+	async function saveWebhook() {
+		if (!webhookUrl.trim()) { toast.error('Paste your Discord webhook URL first.'); return; }
+		webhookLoading = true;
+		try {
+			const res = await fetch('/api/admin/head/changelog', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'set-webhook', webhookUrl: webhookUrl.trim() })
+			});
+			const data = await res.json();
+			if (res.ok) {
+				webhookConfigured = true;
+				webhookUrl = data.webhookUrl || webhookUrl;
+				toast.success('Discord webhook saved! New posts will appear here.');
+			} else {
+				toast.error(data.error || 'Failed to save webhook');
+			}
+		} catch { toast.error('Server error'); } finally { webhookLoading = false; }
+	}
+
+	async function clearWebhook() {
+		webhookLoading = true;
+		try {
+			const res = await fetch('/api/admin/head/changelog', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'clear-webhook' })
+			});
+			if (res.ok) { webhookConfigured = false; webhookUrl = ''; toast.success('Webhook removed.'); }
+			else toast.error('Failed to remove webhook');
+		} catch { toast.error('Server error'); } finally { webhookLoading = false; }
 	}
 
 	async function toggleAdmin(makeAdmin: boolean) {
@@ -166,6 +196,29 @@
 		}
 	}
 
+	async function toggleDeveloper() {
+		if (!devUsername.trim()) return;
+		devLoading = true;
+		try {
+			const res = await fetch('/api/admin/users/toggle-developer', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ username: devUsername.trim() })
+			});
+			const data = await res.json();
+			if (res.ok) {
+				toast.success(`Developer badge ${data.isDeveloper ? 'granted' : 'revoked'} for @${data.username}`);
+				devUsername = '';
+			} else {
+				toast.error(data.message || 'Failed to toggle developer badge');
+			}
+		} catch {
+			toast.error('Failed to toggle developer badge');
+		} finally {
+			devLoading = false;
+		}
+	}
+
 	async function updatePrestige() {
 		const levelNum = parseInt(prestigeLevel);
 		if (!prestigeUsername.trim() || isNaN(levelNum) || levelNum < 0) { toast.error('Provide valid username and level.'); return; }
@@ -224,24 +277,6 @@
 		} catch { toast.error('Server error'); } finally { removePortfolioLoading = false; }
 	}
 
-	async function saveEvent() {
-		eventLoading = true;
-		try {
-			const response = await fetch('/api/admin/head/event', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					multiplier: eventMultiplier,
-					label: eventLabel || (eventMultiplier + 'x Event'),
-					active: eventActive,
-					endsAt: eventEndsAt ? new Date(eventEndsAt).toISOString() : ''
-				})
-			});
-			if (response.ok) toast.success('Event settings saved!');
-			else toast.error('Failed to save event settings');
-		} catch { toast.error('Server error'); } finally { eventLoading = false; }
-	}
-
 	async function postChangelog() {
 		if (!newTitle.trim() || !newContent.trim()) { toast.error('Title and content are required'); return; }
 		changelogLoading = true;
@@ -277,7 +312,6 @@
 		<Tabs.List class="w-full">
 			<Tabs.Trigger value="users">Users</Tabs.Trigger>
 			<Tabs.Trigger value="economy">Economy</Tabs.Trigger>
-			<Tabs.Trigger value="events">Events</Tabs.Trigger>
 			<Tabs.Trigger value="changelog">Changelog</Tabs.Trigger>
 		</Tabs.List>
 
@@ -429,55 +463,27 @@
 					</div>
 				</Card.Content>
 			</Card.Root>
-		</Tabs.Content>
 
-		<!-- EVENTS TAB -->
-		<Tabs.Content value="events" class="mt-4">
 			<Card.Root>
 				<Card.Header>
 					<Card.Title class="flex items-center gap-2">
-						<HugeiconsIcon icon={StarIcon} class="h-5 w-5 text-orange-400" />
-						Global Arcade Multiplier
+						<HugeiconsIcon icon={BinaryCodeIcon} class="h-5 w-5 text-violet-400" />
+						Developer Badge
 					</Card.Title>
-					<Card.Description>Set a global payout multiplier for all arcade games. 2x means players win double. Active events show a banner on the arcade page.</Card.Description>
 				</Card.Header>
-				<Card.Content class="space-y-5">
-					<div class="grid grid-cols-2 gap-4 max-w-md">
-						<div>
-							<label class="mb-2 block text-sm font-medium">Multiplier</label>
-							<Input type="number" min="1" max="100" step="0.5" bind:value={eventMultiplier} placeholder="e.g. 2" />
-						</div>
-						<div>
-							<label class="mb-2 block text-sm font-medium">Label</label>
-							<Input bind:value={eventLabel} placeholder="e.g. Weekend 2x Event" />
-						</div>
+				<Card.Content>
+					<div class="max-w-md flex gap-3">
+						<Input
+							bind:value={devUsername}
+							placeholder="Username (without @)"
+							class="flex-1"
+							onkeydown={(e) => { if (e.key === 'Enter') toggleDeveloper(); }}
+						/>
+						<Button onclick={toggleDeveloper} disabled={!devUsername.trim() || devLoading} class="bg-violet-500 text-white hover:bg-violet-600">
+							<HugeiconsIcon icon={BinaryCodeIcon} class="h-4 w-4" />
+							{devLoading ? 'Toggling...' : 'Toggle Developer'}
+						</Button>
 					</div>
-					<div class="max-w-md">
-						<label class="mb-2 block text-sm font-medium">Ends At (optional)</label>
-						<Input type="datetime-local" bind:value={eventEndsAt} />
-						<p class="text-muted-foreground mt-1 text-xs">Leave blank for no end date.</p>
-					</div>
-					<div class="flex items-center gap-3">
-						<button
-							onclick={() => eventActive = !eventActive}
-							class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {eventActive ? 'bg-orange-500' : 'bg-muted'}"
-						>
-							<span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {eventActive ? 'translate-x-6' : 'translate-x-1'}"></span>
-						</button>
-						<span class="text-sm">{eventActive ? 'Event ACTIVE' : 'Event inactive'}</span>
-					</div>
-
-					<!-- Preview -->
-					{#if eventActive}
-						<div class="rounded-lg border border-orange-500/30 bg-orange-500/10 p-4">
-							<p class="text-orange-400 font-semibold text-sm">Preview — Banner shown on arcade page:</p>
-							<p class="text-orange-300 mt-1">{eventLabel || eventMultiplier + 'x Event'} — All winnings are multiplied by {eventMultiplier}x{eventEndsAt ? ` until ${new Date(eventEndsAt).toLocaleString()}` : ''}!</p>
-						</div>
-					{/if}
-
-					<Button onclick={saveEvent} disabled={eventLoading} class="bg-orange-500 text-white hover:bg-orange-600">
-						{eventLoading ? 'Saving...' : 'Save Event Settings'}
-					</Button>
 				</Card.Content>
 			</Card.Root>
 		</Tabs.Content>
@@ -505,11 +511,39 @@
 							{/each}
 						</div>
 					</div>
-					<Button onclick={postChangelog} disabled={!newTitle.trim() || !newContent.trim() || changelogLoading} class="bg-blue-500 text-white hover:bg-blue-600">
-						{changelogLoading ? 'Posting...' : 'Publish'}
+<Button onclick={postChangelog} disabled={!newTitle.trim() || !newContent.trim() || changelogLoading} class="bg-blue-500 text-white hover:bg-blue-600">
+					{changelogLoading ? 'Posting...' : 'Publish'}
+				</Button>
+			</Card.Content>
+		</Card.Root>
+
+		<!-- Discord webhook sync -->
+		<Card.Root>
+			<Card.Header>
+				<Card.Title class="flex items-center gap-2">
+					<HugeiconsIcon icon={DiscordIcon} class="h-5 w-5 text-indigo-400" />
+					Discord Webhook Sync
+				</Card.Title>
+				<Card.Description>Paste the webhook URL of a Discord channel. Every time you post there, the message is pulled in as a changelog entry automatically.</Card.Description>
+			</Card.Header>
+			<Card.Content class="space-y-4">
+				{#if webhookConfigured}
+					<div class="flex items-center gap-2 text-sm">
+						<span class="font-mono text-muted-foreground">{webhookUrl}</span>
+						<span class="rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-500">Connected</span>
+					</div>
+					<Button variant="destructive" size="sm" onclick={clearWebhook} disabled={webhookLoading}>
+						{webhookLoading ? 'Removing...' : 'Disconnect'}
 					</Button>
-				</Card.Content>
-			</Card.Root>
+				{:else}
+					<Input bind:value={webhookUrl} placeholder="https://discord.com/api/webhooks/xxxxxxxx/yyyyyyyy" />
+					<p class="text-muted-foreground text-xs">Create a webhook in your Discord channel (Channel Settings → Integrations → Webhooks) and paste its URL here.</p>
+					<Button onclick={saveWebhook} disabled={!webhookUrl.trim() || webhookLoading} class="bg-indigo-500 text-white hover:bg-indigo-600">
+						{webhookLoading ? 'Saving...' : 'Connect Webhook'}
+					</Button>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 
 			<!-- Existing entries -->
 			<div class="space-y-3">

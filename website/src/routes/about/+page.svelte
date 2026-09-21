@@ -127,9 +127,41 @@
 			</CardHeader>
 			<CardContent>
 				<div class="space-y-4">
-					<p class="text-muted-foreground text-sm">Created by <strong>lordpipon</strong></p>
-				<p class="text-muted-foreground text-sm">Original project by <strong>Facedev</strong></p>
+					<p class="text-muted-foreground text-sm">Original Rugplay Created by <strong>Facedev</strong></p>
+					<p class="text-muted-foreground text-sm">XprismPlay maintained by <strong>Xprism</strong></p>
+					<p class="text-muted-foreground text-sm">BooPlay maintained by <strong>1boongie</strong></p>
+					<p class="text-muted-foreground text-sm">Catplay maintained by <strong>lordpipon</strong></p>
 					<div class="flex flex-wrap gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							href="https://github.com/outpoot/rugplay"
+							target="_blank"
+							rel="noopener"
+						>
+							<HugeiconsIcon icon={GithubIcon} class="h-4 w-4" />
+							Rugplay
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							href="https://github.com/xprismplay/xprismplay"
+							target="_blank"
+							rel="noopener"
+						>
+							<HugeiconsIcon icon={GithubIcon} class="h-4 w-4" />
+							XprismPlay
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							href="https://github.com/1boongie/booplay"
+							target="_blank"
+							rel="noopener"
+						>
+							<HugeiconsIcon icon={GithubIcon} class="h-4 w-4" />
+							BooPlay
+						</Button>
 						<Button
 							variant="outline"
 							size="sm"
@@ -138,7 +170,7 @@
 							rel="noopener"
 						>
 							<HugeiconsIcon icon={GithubIcon} class="h-4 w-4" />
-							GitHub
+							Catplay
 						</Button>
 						<Button
 							variant="outline"

@@ -10,7 +10,8 @@ export type AchievementCategory =
 	| 'hopium'
 	| 'social'
 	| 'shop'
-	| 'special';
+	| 'special'
+	| 'season';
 
 export interface AchievementDef {
 	id: string;
@@ -48,7 +49,8 @@ export const CATEGORY_LABEL: Record<AchievementCategory, string> = {
 	hopium: 'Hopium',
 	social: 'Social',
 	shop: 'Shop & Cosmetics',
-	special: 'Special'
+	special: 'Special',
+	season: 'Seasons'
 };
 
 export const ACHIEVEMENTS: AchievementDef[] = [
@@ -746,6 +748,116 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 		cashReward: 10000,
 		gemReward: 50,
 		category: 'special'
+	},
+
+	// SEASONS (10)
+	{
+		id: 'season_entry',
+		name: 'Clean Slate',
+		description: 'Enter a ranked season and burn everything above the stake',
+		icon: 'season_clean_slate.png',
+		difficulty: 'easy',
+		cashReward: 2500,
+		gemReward: 10,
+		category: 'season'
+	},
+	{
+		id: 'season_double',
+		name: 'Doubled Down',
+		description: 'Double your starting stake in a season',
+		icon: 'season_doubled_down.png',
+		difficulty: 'medium',
+		cashReward: 7500,
+		gemReward: 25,
+		category: 'season',
+		targetValue: 2
+	},
+	{
+		id: 'season_10x',
+		name: 'Order of Magnitude',
+		description: 'Reach 10x your starting stake in a season',
+		icon: 'season_order_of_magnitude.png',
+		difficulty: 'hard',
+		cashReward: 25000,
+		gemReward: 75,
+		category: 'season',
+		targetValue: 10
+	},
+	{
+		id: 'season_100x',
+		name: 'Parabolic',
+		description: 'Reach 100x your starting stake in a season',
+		icon: 'season_parabolic.png',
+		difficulty: 'legendary',
+		cashReward: 100000,
+		gemReward: 250,
+		category: 'season',
+		targetValue: 100
+	},
+	{
+		id: 'season_podium',
+		name: 'On The Podium',
+		description: 'Finish a season in the top 3',
+		icon: 'season_podium.png',
+		difficulty: 'hard',
+		cashReward: 30000,
+		gemReward: 100,
+		category: 'season',
+		targetValue: 3
+	},
+	{
+		id: 'season_champion',
+		name: 'Season Champion',
+		description: 'Win a season outright',
+		icon: 'season_champion.png',
+		difficulty: 'legendary',
+		cashReward: 100000,
+		gemReward: 300,
+		category: 'season'
+	},
+	{
+		id: 'season_dynasty',
+		name: 'Dynasty',
+		description: 'Win two separate seasons',
+		icon: 'season_dynasty.png',
+		difficulty: 'legendary',
+		cashReward: 250000,
+		gemReward: 500,
+		category: 'season',
+		targetValue: 2
+	},
+	{
+		id: 'season_regular',
+		name: 'Regular',
+		description: 'Compete in 3 different seasons',
+		icon: 'season_regular.png',
+		difficulty: 'medium',
+		cashReward: 10000,
+		gemReward: 30,
+		category: 'season',
+		targetValue: 3
+	},
+	{
+		id: 'season_veteran',
+		name: 'Old Guard',
+		description: 'Compete in 10 different seasons',
+		icon: 'season_old_guard.png',
+		difficulty: 'legendary',
+		cashReward: 75000,
+		gemReward: 200,
+		category: 'season',
+		targetValue: 10
+	},
+	{
+		id: 'season_underdog',
+		name: 'Underdog',
+		description: 'Finish top 10 in a season',
+		icon: 'season_underdog.png',
+		difficulty: 'hard',
+		cashReward: 20000,
+		gemReward: 75,
+		category: 'season',
+		targetValue: 10
 	}
 ];
 
@@ -763,5 +875,6 @@ export const ACHIEVEMENT_CATEGORIES: AchievementCategory[] = [
 	'hopium',
 	'social',
 	'shop',
-	'special'
+	'special',
+	'season'
 ];

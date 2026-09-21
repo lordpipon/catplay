@@ -5,7 +5,7 @@
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { toast } from 'svelte-sonner';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { CrownIcon, Tick01Icon, LockIcon, GiftIcon, Award01Icon } from '@hugeicons/core-free-icons';
+	import { CrownIcon, Tick01Icon, LockIcon, GiftIcon, Award01Icon, GemIcon } from '@hugeicons/core-free-icons';
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { goto } from '$app/navigation';
 	import { formatValue } from '$lib/utils';
@@ -46,6 +46,13 @@
 	function taskProgress(tier: Tier): { current: number; target: number; pct: number } {
 		const current = Math.min(counts[tier.taskType] ?? 0, tier.taskTarget);
 		return { current, target: tier.taskTarget, pct: Math.min(100, Math.round((current / tier.taskTarget) * 100)) };
+	}
+
+	function gemReward(tier: Tier): { amount: number; cash: number } | null {
+		if (tier.rewardType !== 'gems') return null;
+		const amount = Math.round(Number(tier.rewardAmount) || 0);
+		const cash = tier.tier === 'premium' ? amount * 25 : 0;
+		return { amount, cash };
 	}
 
 	async function load() {
@@ -198,7 +205,7 @@
 								<div class="flex items-start justify-between gap-2">
 									<div class="flex-1">
 										<p class="text-xs text-muted-foreground">{free.taskDescription}</p>
-										<p class="text-sm font-semibold">{free.rewardLabel || `$${formatValue(Number(free.rewardAmount))}`}</p>
+										<p class="text-sm font-semibold">{@render rewardText(free)}</p>
 									</div>
 									{#if claimed}
 										<span class="text-green-500 text-xs flex items-center gap-0.5 shrink-0"><HugeiconsIcon icon={Tick01Icon} class="h-3 w-3" />Done</span>
@@ -233,7 +240,7 @@
 											<HugeiconsIcon icon={CrownIcon} class="h-3 w-3 text-yellow-500 shrink-0" />
 											<p class="text-xs text-yellow-500/80">{premium.taskDescription}</p>
 										</div>
-										<p class="text-sm font-semibold">{premium.rewardLabel}</p>
+										<p class="text-sm font-semibold">{@render rewardText(premium)}</p>
 									</div>
 									{#if !isVip}
 										<span class="text-yellow-500/70 text-xs flex items-center gap-0.5 shrink-0"><HugeiconsIcon icon={LockIcon} class="h-3 w-3" />VIP</span>
@@ -260,3 +267,18 @@
 		</div>
 	{/if}
 </div>
+
+{#snippet rewardText(tier: Tier)}
+	{@const gems = gemReward(tier)}
+	{#if gems}
+		<span class="inline-flex items-center gap-1">
+			<HugeiconsIcon icon={GemIcon} class="h-3.5 w-3.5 text-purple-400 shrink-0" />
+			<span>{gems.amount}</span>
+			{#if gems.cash > 0}
+				<span class="text-muted-foreground">+ ${formatValue(gems.cash)}</span>
+			{/if}
+		</span>
+	{:else}
+		{tier.rewardLabel || formatValue(Number(tier.rewardAmount))}
+	{/if}
+{/snippet}

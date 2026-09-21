@@ -304,7 +304,7 @@ Provide your response in the specified JSON format with a precise ISO 8601 datet
 
 	try {
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 20_000);
+		const timeout = setTimeout(() => controller.abort(), 8_000);
 
 		const completion = await openai.chat.completions.create({
 			model: MODELS.STANDARD,
@@ -405,7 +405,7 @@ Respond with JSON: { "resolution": boolean, "confidence": number (0-100), "reaso
 
 	try {
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 30_000);
+		const timeout = setTimeout(() => controller.abort(), 15_000);
 
 		const completion = await openai.chat.completions.create({
 			model,

@@ -44,17 +44,24 @@
 		Money01Icon,
 		News01Icon,
 		Message01Icon,
-		UserAdd01Icon
+		UserAdd01Icon,
+		PodiumIcon,
+		SentIcon,
+		MegaphoneIcon
 	} from '@hugeicons/core-free-icons';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import { USER_DATA } from '$lib/stores/user-data';
-	import { PORTFOLIO_SUMMARY, fetchPortfolioSummary } from '$lib/stores/portfolio-data';
+	import { PORTFOLIO_SUMMARY, fetchPortfolioSummary, fetchPortfolioData } from '$lib/stores/portfolio-data';
+	import { SITE_NAME } from '$lib/site';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
 	import SignInConfirmDialog from './SignInConfirmDialog.svelte';
 	import DailyRewards from './DailyRewards.svelte';
 	import PromoCodeDialog from './PromoCodeDialog.svelte';
 	import UserManualModal from './UserManualModal.svelte';
+	import SendMoneyModal from './SendMoneyModal.svelte';
+	import AdSquare from './AdSquare.svelte';
+	import { ADS } from '$lib/stores/ads';
 	import { signOut } from '$lib/auth-client';
 	import { formatValue, getPublicUrl } from '$lib/utils';
 	import { goto } from '$app/navigation';
@@ -76,6 +83,7 @@
 			{ title: $_('page_names.arcade'), url: '/arcade', icon: Joystick04Icon },
 			{ title: $_('page_names.lottery'), url: '/lottery', icon: Money01Icon },
 			{ title: $_('page_names.leaderboard'), url: '/leaderboard', icon: ChampionIcon },
+			{ title: $_('page_names.season'), url: '/season', icon: PodiumIcon },
 			{ title: $_('page_names.shop'), url: '/shop', icon: ShoppingBasket01Icon },
 			{ title: $_('page_names.achievements'), url: '/achievements', icon: Award05Icon },
 			{ title: $_('page_names.groups'), url: '/groups', icon: UserGroupIcon },
@@ -88,6 +96,7 @@
 			{ title: 'VIP', url: '/vip', icon: CrownIcon },
 			{ title: 'Battlepass', url: '/battlepass', icon: Award05Icon },
 			{ title: 'Updates', url: '/updates', icon: News01Icon },
+			{ title: 'Advertisements', url: '/advertisements', icon: MegaphoneIcon },
 			{ title: $_('page_names.about'), url: '/about', icon: InformationCircleIcon },
 		]
 	};
@@ -98,6 +107,7 @@
 	let shouldSignIn = $state(false);
 	let showPromoCode = $state(false);
 	let showUserManual = $state(false);
+	let showSendMoney = $state(false);
 
 	onMount(() => {
 		if ($USER_DATA) {
@@ -141,17 +151,23 @@
 	function handleUserManualClick() { showUserManual = true; setOpenMobile(false); }
 	function handlePrestigeClick() { goto('/prestige'); setOpenMobile(false); }
 	function handleAPIClick() { goto('/api'); setOpenMobile(false); }
+	function handleSendMoneyClick() {
+		fetchPortfolioData();
+		showSendMoney = true;
+		setOpenMobile(false);
+	}
 </script>
 
 <SignInConfirmDialog bind:open={shouldSignIn} />
 <PromoCodeDialog bind:open={showPromoCode} />
 <UserManualModal bind:open={showUserManual} />
+<SendMoneyModal bind:open={showSendMoney} />
 <Sidebar.Root collapsible="offcanvas">
 	<Sidebar.Header>
 		<div class="flex items-center gap-2 px-2 py-2">
-			<img src="/catplay.png" class="h-5 w-5" alt="Catplay" />
+			<img src="/catplay.png" class="h-5 w-5" alt={SITE_NAME} />
 			<div class="flex items-center gap-2">
-				<span class="text-base font-semibold">Catplay</span>
+				<span class="text-base font-semibold">{SITE_NAME}</span>
 				{#if hasFlag($USER_DATA?.flags, 'IS_ADMIN')}
 					<span class="text-muted-foreground text-xs">| Admin</span>
 				{/if}
@@ -306,9 +322,19 @@
 								<Badge variant="secondary" class="font-mono">${formatCurrency($PORTFOLIO_SUMMARY.totalValue)}</Badge>
 							</div>
 							<div class="text-muted-foreground space-y-1 text-xs">
-								<div class="flex justify-between">
+								<div class="flex items-center justify-between">
 									<span>Cash:</span>
-									<span class="font-mono" style="color: #00ff0d">${formatCurrency($PORTFOLIO_SUMMARY.baseCurrencyBalance)}</span>
+									<span class="flex items-center gap-1">
+										<span class="font-mono" style="color: #00ff0d">${formatCurrency($PORTFOLIO_SUMMARY.baseCurrencyBalance)}</span>
+										<button
+											type="button"
+											title="Send money"
+											onclick={handleSendMoneyClick}
+											class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ml-0.5 flex size-4 cursor-pointer items-center justify-center rounded text-muted-foreground"
+										>
+											<HugeiconsIcon icon={SentIcon} size={12} strokeWidth={2} />
+										</button>
+									</span>
 								</div>
 								<div class="flex justify-between">
 									<span>Coins:</span>
@@ -325,6 +351,16 @@
 								{/if}
 							</div>
 						{/if}
+					</div>
+				</Sidebar.GroupContent>
+			</Sidebar.Group>
+		{/if}
+		{#if !$USER_DATA?.hideAds && $ADS.length > 0}
+			<Sidebar.Group>
+				<Sidebar.GroupLabel class="text-yellow-500/70 text-[9px] tracking-widest uppercase">Sponsored</Sidebar.GroupLabel>
+				<Sidebar.GroupContent>
+					<div class="px-1 pb-1">
+						<AdSquare />
 					</div>
 				</Sidebar.GroupContent>
 			</Sidebar.Group>

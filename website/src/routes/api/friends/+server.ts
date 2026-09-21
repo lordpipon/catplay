@@ -1,7 +1,7 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, friendship } from '$lib/server/db/schema';
+import { user, friendship, chatChannel } from '$lib/server/db/schema';
 import { eq, or, and } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { RequestHandler } from './$types';
@@ -115,6 +115,23 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	if (action === 'decline' || action === 'remove') {
 		await db.delete(friendship).where(eq(friendship.id, existing[0].id));
+
+		// Removing a friend removes the DM channel (and its messages) between them.
+		if (action === 'remove') {
+			const a = Math.min(userId, targetId);
+			const b = Math.max(userId, targetId);
+			await db
+				.delete(chatChannel)
+				.where(
+					and(
+						eq(chatChannel.type, 'DIRECT'),
+						eq(chatChannel.user1Id, a),
+						eq(chatChannel.user2Id, b)
+					)
+				)
+				.catch((e) => console.error('Failed to delete DM channel on friend removal:', e));
+		}
+
 		return json({ success: true });
 	}
 

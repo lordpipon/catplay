@@ -7,7 +7,10 @@ import { db } from './server/db';
 import * as schema from './server/db/schema';
 import { generateUsername } from './utils/random';
 import { uploadProfilePicture } from './server/s3';
+import { trustedOrigins } from './server/site-config';
 import { apiKey } from '@better-auth/api-key';
+import { isProxyIp, getClientIp } from './server/anti-abuse';
+import { hasMxRecords } from './server/email-domain';
 
 if (!privateEnv.GOOGLE_CLIENT_ID) throw new Error('GOOGLE_CLIENT_ID is not set');
 if (!privateEnv.GOOGLE_CLIENT_SECRET) throw new Error('GOOGLE_CLIENT_SECRET is not set');
@@ -257,15 +260,7 @@ export const auth = betterAuth({
 	secret: privateEnv.PRIVATE_BETTER_AUTH_SECRET,
 	appName: 'Catplay',
 
-	trustedOrigins: [
-		publicEnv.PUBLIC_BETTER_AUTH_URL,
-		'https://catplay.org',
-		'http://catplay.org',
-		'https://catplay.dpdns.org',
-		'http://catplay.dpdns.org',
-		'http://localhost:5173',
-		'http://localhost:4173'
-	],
+	trustedOrigins: trustedOrigins(),
 
 	plugins: [
 		apiKey({
@@ -289,7 +284,7 @@ export const auth = betterAuth({
 	databaseHooks: {
 		user: {
 			create: {
-				before: async (userData) => {
+				before: async (userData, context) => {
 					if (!('username' in userData) || !userData.username) {
 						userData = { ...userData, username: generateUsername() };
 					}
@@ -297,6 +292,50 @@ export const auth = betterAuth({
 					if (email && isDisposableEmail(email)) {
 						throw new Error('Disposable email addresses are not allowed');
 					}
+					if (email) {
+						const domain = email.split('@')[1]?.toLowerCase() ?? '';
+						if (domain && !(await hasMxRecords(domain))) {
+							throw new Error('Please use a real email address (this domain cannot receive mail).');
+						}
+					}
+
+					// Anti-abuse: resolve client IP from the request headers wrapped in
+					// better-auth's endpoint context (the hook's 2nd arg has `.request`).
+					let ip: string | undefined;
+					try {
+						const request = (context as any)?.request;
+						if (request) ip = getClientIp(request);
+					} catch {}
+
+					if (ip) {
+						// Reject registrations from known proxy/VPN egress ranges.
+						if (isProxyIp(ip)) {
+							throw new Error('Please disconnect from your VPN or proxy to register.');
+						}
+						// Anti-alt: allow up to 3 accounts per IP; warn at 2-3, deny beyond 3.
+						try {
+							const limit = await checkAccountLimitForIp(ip, db, schema.user);
+							if (limit.action === 'deny') {
+								throw new Error('Too many accounts have been created from your network.');
+							}
+							if (limit.action === 'warn') {
+								userData = {
+									...userData,
+									signupIp: ip,
+									altWarning: `Possible alt account (${limit.count} accounts on IP ${ip})`
+								};
+							} else {
+								userData = { ...userData, signupIp: ip };
+							}
+						} catch (err) {
+							if (err instanceof Error && err.message === 'Too many accounts have been created from your network.') {
+								throw err;
+							}
+							console.error('Anti-abuse account limit check failed:', err);
+							userData = { ...userData, signupIp: ip };
+						}
+					}
+
 					return { data: userData };
 				}
 			}
@@ -355,7 +394,9 @@ export const auth = betterAuth({
 			baseCurrencyBalance: { type: 'string', required: false, input: false },
 			bio: { type: 'string', required: false },
 			volumeMaster: { type: 'string', required: false, input: false },
-			volumeMuted: { type: 'boolean', required: false, input: false }
+			volumeMuted: { type: 'boolean', required: false, input: false },
+			signupIp: { type: 'string', required: false, input: false },
+			altWarning: { type: 'string', required: false, input: false }
 		}
 	},
 	session: {

@@ -7,6 +7,8 @@
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import TradeModal from '$lib/components/self/TradeModal.svelte';
+	import CreateAdModal from '$lib/components/self/CreateAdModal.svelte';
+	import { GEMS_BALANCE, fetchGemsBalance } from '$lib/stores/gems';
 	import CommentSection from '$lib/components/self/CommentSection.svelte';
 	import UserProfilePreview from '$lib/components/self/UserProfilePreview.svelte';
 	import UserName from '$lib/components/self/UserName.svelte';
@@ -18,7 +20,8 @@
 		TradeDownIcon,
 		MoneyBag02Icon,
 		Coins01Icon,
-		Analytics01Icon
+		Analytics01Icon,
+		MegaphoneIcon
 	} from '@hugeicons/core-free-icons';
 	import {
 		createChart,
@@ -51,6 +54,7 @@
 	let buyModalOpen = $state(false);
 	let sellModalOpen = $state(false);
 	let burnModalOpen = $state(false);
+	let adModalOpen = $state(false);
 	let selectedTimeframe = $state(data.timeframe || '1m');
 	let lastPriceUpdateTime = 0;
 	let shouldSignIn = $state(false);
@@ -559,6 +563,7 @@
 		{userHolding}
 		onSuccess={handleBurnSuccess}
 	/>
+	<CreateAdModal bind:open={adModalOpen} userGems={$GEMS_BALANCE ?? 0} preselectedCoinId={coin.id} />
 {/if}
 <div class="container mx-auto max-w-7xl p-6">
 	{#if loading}
@@ -751,6 +756,18 @@
 									>
 										<HugeiconsIcon icon={Coins01Icon} class="h-4 w-4" />
 										{$_('coin.trade.burn.title').replace('{{symbol}}', coin.symbol)}
+									</Button>
+									<Button
+										class="w-full"
+										variant="outline"
+										size="lg"
+										onclick={() => {
+											adModalOpen = true;
+											fetchGemsBalance();
+										}}
+									>
+										<HugeiconsIcon icon={MegaphoneIcon} class="h-4 w-4 text-yellow-500" />
+										Advertise This Coin
 									</Button>
 								</div>
 							{:else}
