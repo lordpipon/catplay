@@ -709,6 +709,22 @@
 									<Tooltip.Content>{isBlocked ? 'Unblock' : 'Block'}</Tooltip.Content>
 								</Tooltip.Root>
 							</Tooltip.Provider>
+							<Tooltip.Provider>
+								<Tooltip.Root>
+									<Tooltip.Trigger>
+										<Button
+											variant="ghost"
+											size="icon"
+											onclick={startDM}
+											disabled={!$USER_DATA}
+											class="h-8 w-8 text-muted-foreground hover:text-primary"
+										>
+											<HugeiconsIcon icon={Message01Icon} class="h-4 w-4" />
+										</Button>
+									</Tooltip.Trigger>
+									<Tooltip.Content>Message</Tooltip.Content>
+								</Tooltip.Root>
+							</Tooltip.Provider>
 							<Button
 								size="xs"
 								variant={followData?.isFollowing ? 'outline' : 'default'}
@@ -722,10 +738,6 @@
 								{followData?.isFollowing ? 'Following' : (followLoading ? '…' : 'Follow')}
 							</Button>
 							{#if friendStatus?.status === 'accepted'}
-								<Button size="xs" variant="outline" onclick={startDM}>
-									<HugeiconsIcon icon={Message01Icon} class="h-3.5 w-3.5" />
-									Message
-								</Button>
 								<Button
 									size="xs"
 									variant="destructive"

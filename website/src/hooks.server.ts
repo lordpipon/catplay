@@ -1,7 +1,6 @@
 import { auth } from '$lib/auth';
 import { resolveExpiredQuestions, processAccountDeletions, bootstrapFirstAdmin } from '$lib/server/job';
 import { rolloverSeasons } from '$lib/server/seasons';
-import { syncDiscordChangelog } from '$lib/server/discord-changelog';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { redis } from '$lib/server/redis';
 import { building } from '$app/environment';
@@ -88,7 +87,6 @@ async function initializeScheduler() {
 			resolveExpiredQuestions().catch(console.error);
 			processAccountDeletions().catch(console.error);
 			rolloverSeasons().catch(console.error);
-			syncDiscordChangelog().catch(console.error);
 			bootstrapFirstAdmin().catch(console.error);
 
 			const schedulerInterval = setInterval(
@@ -96,7 +94,6 @@ async function initializeScheduler() {
 					resolveExpiredQuestions().catch(console.error);
 					processAccountDeletions().catch(console.error);
 					rolloverSeasons().catch(console.error);
-					syncDiscordChangelog().catch(console.error);
 					bootstrapFirstAdmin().catch(console.error);
 				},
 				5 * 60 * 1000

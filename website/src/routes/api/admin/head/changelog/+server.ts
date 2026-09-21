@@ -4,7 +4,7 @@ import { db } from '$lib/server/db';
 import { user, changelogEntry } from '$lib/server/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { hasFlag } from '$lib/data/flags';
-import { getDiscordChangelogWebhook, setDiscordChangelogWebhook, clearDiscordChangelogWebhook } from '$lib/server/discord-changelog';
+import { getDiscordChangelogWebhook, setDiscordChangelogWebhook, clearDiscordChangelogWebhook, postChangelogEntryToDiscord } from '$lib/server/discord-changelog';
 import type { RequestHandler } from './$types';
 
 async function requireHeadAdmin(headers: Headers): Promise<number> {
@@ -54,7 +54,14 @@ export const POST: RequestHandler = async ({ request }) => {
 		createdBy: userId
 	}).returning();
 
-	return json(entry);
+	let pushedToDiscord = false;
+	try {
+		pushedToDiscord = await postChangelogEntryToDiscord(entry);
+	} catch {
+		pushedToDiscord = false;
+	}
+
+	return json({ ...entry, pushedToDiscord });
 };
 
 export const DELETE: RequestHandler = async ({ request }) => {

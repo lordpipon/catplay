@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
-import { globalSetting, changelogEntry } from '$lib/server/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { globalSetting } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
 
 const WEBHOOK_SETTING_KEY = 'discord_changelog_webhook';
 
@@ -37,60 +37,45 @@ export async function clearDiscordChangelogWebhook() {
 	await db.delete(globalSetting).where(eq(globalSetting.key, WEBHOOK_SETTING_KEY));
 }
 
-export interface DiscordChangelogSyncResult {
-	added: number;
-	fetched: number;
-	messagesTotal: number;
-}
-
-export async function syncDiscordChangelog(): Promise<DiscordChangelogSyncResult> {
+export async function postChangelogEntryToDiscord(entry: {
+	title: string;
+	content: string;
+	tag?: string | null;
+	createdAt: Date;
+}): Promise<boolean> {
 	const webhookUrl = await getDiscordChangelogWebhook();
-	if (!webhookUrl) return { added: 0, fetched: 0, messagesTotal: 0 };
+	if (!webhookUrl) return false;
 
-	let res: Response;
+	const tagColors: Record<string, number> = {
+		update: 0x3b82f6,
+		feature: 0x8b5cf6,
+		fix: 0x22c55e,
+		hotfix: 0xef4444,
+		event: 0xf59e0b,
+		maintenance: 0x64748b
+	};
+
+	const payload = {
+		username: 'Catplay Updates',
+		embeds: [
+			{
+				title: entry.title,
+				description: entry.content.slice(0, 4096),
+				color: tagColors[entry.tag ?? 'update'] ?? 0x3b82f6,
+				timestamp: entry.createdAt.toISOString(),
+				footer: { text: (entry.tag ?? 'update').toUpperCase() }
+			}
+		]
+	};
+
 	try {
-		res = await fetch(`${webhookUrl}/messages?limit=50`, {
-			headers: { Accept: 'application/json' }
+		const res = await fetch(webhookUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
 		});
+		return res.ok;
 	} catch {
-		return { added: 0, fetched: 0, messagesTotal: 0 };
+		return false;
 	}
-
-	if (!res.ok) return { added: 0, fetched: 0, messagesTotal: 0 };
-
-	const messages: Array<{ id: string; content?: string; author?: { username?: string } | null }> =
-		await res.json();
-
-	const messagesTotal = messages.length;
-	let added = 0;
-
-	const messageIds = messages.map((m) => m.id);
-	let existing: Array<{ discordMessageId: string | null }> = [];
-	if (messageIds.length > 0) {
-		existing = await db
-			.select({ discordMessageId: changelogEntry.discordMessageId })
-			.from(changelogEntry)
-			.where(inArray(changelogEntry.discordMessageId, messageIds));
-	}
-	const existingSet = new Set(existing.map((e) => e.discordMessageId));
-
-	for (const message of messages) {
-		if (existingSet.has(message.id)) continue;
-		let content = (message.content ?? '').trim();
-		if (!content) continue;
-
-		const firstLine = content.split('\n')[0]?.trim() ?? '';
-		const title = (firstLine || `Update from ${message.author?.username || 'Discord'}`).slice(0, 200);
-
-		await db.insert(changelogEntry).values({
-			title,
-			content,
-			tag: 'update',
-			discordMessageId: message.id
-		});
-		existingSet.add(message.id);
-		added++;
-	}
-
-	return { added, fetched: messages.length, messagesTotal };
 }

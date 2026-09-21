@@ -118,10 +118,10 @@
 </script>
 
 <Card.Root
-	class="gap-2 {holdersData && holdersData.holders.length > 3
+	class="gap-2 {holdersData && holdersData.holders.length > 0
 		? 'hover:bg-card/90 cursor-pointer transition-colors'
 		: ''}"
-	onclick={() => holdersData && holdersData.holders.length > 3 && (modalOpen = true)}
+	onclick={() => holdersData && holdersData.holders.length > 0 && (modalOpen = true)}
 >
 	<Card.Header>
 		<Card.Title class="flex items-center gap-2">Top Holders</Card.Title>
@@ -180,7 +180,7 @@
 			</div>
 		{/if}
 
-		{#if holdersData && holdersData.holders.length > 3}
+		{#if holdersData && holdersData.holders.length > 0}
 			<div
 				class="from-card/80 pointer-events-none absolute inset-0 bg-gradient-to-t via-transparent to-transparent"
 			></div>

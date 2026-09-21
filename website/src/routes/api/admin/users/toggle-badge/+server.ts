@@ -10,10 +10,13 @@ import type { RequestHandler } from './$types';
 const BADGES = {
 	supporter: { flag: UserFlags.FOUNDER_BADGE, label: 'Supporter' },
 	developer: { flag: UserFlags.DEVELOPER_BADGE, label: 'Developer' },
-	owner: { flag: UserFlags.OWNER_BADGE, label: 'Owner' }
+	owner: { flag: UserFlags.OWNER_BADGE, label: 'Owner' },
+	halloween: { label: 'Halloween' }
 } as const;
 
 type BadgeKey = keyof typeof BADGES;
+
+const isHalloween = (key: BadgeKey): key is 'halloween' => key === 'halloween';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const authSession = await auth.api.getSession({ headers: request.headers });
@@ -34,20 +37,38 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!badge || !(badge in BADGES)) throw error(400, 'Invalid badge type');
 
 	const key = badge as BadgeKey;
-	const { flag, label } = BADGES[key];
+	const { label } = BADGES[key];
 
 	const [target] = await db
-		.select({ id: user.id, username: user.username, flags: user.flags })
+		.select({
+			id: user.id,
+			username: user.username,
+			flags: user.flags,
+			halloweenBadge2026: user.halloweenBadge2026
+		})
 		.from(user)
 		.where(eq(user.username, username.trim()))
 		.limit(1);
 
 	if (!target) throw error(404, 'User not found');
 
-	const hasBadge = hasFlag(target.flags, key === 'supporter' ? 'FOUNDER_BADGE' : key === 'developer' ? 'DEVELOPER_BADGE' : 'OWNER_BADGE');
-	const newFlags = hasBadge ? target.flags & ~flag : target.flags | flag;
+	let hasBadge: boolean;
+	let newData: Partial<typeof user.$inferInsert>;
 
-	await db.update(user).set({ flags: newFlags, updatedAt: new Date() }).where(eq(user.id, target.id));
+	if (isHalloween(key)) {
+		hasBadge = !!target.halloweenBadge2026;
+		newData = { halloweenBadge2026: !hasBadge, updatedAt: new Date() };
+	} else {
+		const { flag } = BADGES[key as 'supporter' | 'developer' | 'owner'];
+		hasBadge = hasFlag(
+			target.flags,
+			key === 'supporter' ? 'FOUNDER_BADGE' : key === 'developer' ? 'DEVELOPER_BADGE' : 'OWNER_BADGE'
+		);
+		const newFlags = hasBadge ? target.flags & ~flag : target.flags | flag;
+		newData = { flags: newFlags, updatedAt: new Date() };
+	}
+
+	await db.update(user).set(newData).where(eq(user.id, target.id));
 
 	const action = hasBadge ? 'revoked' : 'granted';
 	await writeAdminLog(

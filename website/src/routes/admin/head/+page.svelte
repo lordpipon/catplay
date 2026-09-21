@@ -17,7 +17,8 @@
 		BinaryCodeIcon,
 		DiscordIcon,
 		StarIcon,
-		Rocket01Icon
+		Rocket01Icon,
+		LanternIcon
 	} from '@hugeicons/core-free-icons';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
@@ -42,7 +43,7 @@
 
 	// Special Badges State
 	let badgeUsername = $state('');
-	let badgeLoading = $state<'supporter' | 'developer' | 'owner' | null>(null);
+	let badgeLoading = $state<'supporter' | 'developer' | 'owner' | 'halloween' | null>(null);
 
 	// Prestige State
 	let prestigeUsername = $state('');
@@ -198,7 +199,7 @@
 		}
 	}
 
-	async function toggleBadge(badge: 'supporter' | 'developer' | 'owner') {
+	async function toggleBadge(badge: 'supporter' | 'developer' | 'owner' | 'halloween') {
 		if (!badgeUsername.trim()) { toast.error('Enter a username first.'); return; }
 		badgeLoading = badge;
 		try {
@@ -289,7 +290,11 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ title: newTitle.trim(), content: newContent.trim(), tag: newTag })
 			});
-			if (response.ok) { toast.success('Post published!'); newTitle = ''; newContent = ''; newTag = 'update'; await loadChangelog(); }
+			if (response.ok) {
+				const result = await response.json();
+				toast.success(result.pushedToDiscord ? 'Post published and sent to Discord!' : 'Post published!');
+				newTitle = ''; newContent = ''; newTag = 'update'; await loadChangelog();
+			}
 			else toast.error('Failed to post');
 		} catch { toast.error('Server error'); } finally { changelogLoading = false; }
 	}
@@ -507,6 +512,14 @@
 							<HugeiconsIcon icon={CrownIcon} class="h-4 w-4" />
 							{badgeLoading === 'owner' ? 'Toggling...' : 'Owner'}
 						</Button>
+						<Button
+							onclick={() => toggleBadge('halloween')}
+							disabled={!badgeUsername.trim() || badgeLoading !== null}
+							class="bg-orange-500 text-white hover:bg-orange-600"
+						>
+							<HugeiconsIcon icon={LanternIcon} class="h-4 w-4" />
+							{badgeLoading === 'halloween' ? 'Toggling...' : 'Halloween'}
+						</Button>
 					</div>
 				</Card.Content>
 			</Card.Root>
@@ -548,7 +561,7 @@
 					<HugeiconsIcon icon={DiscordIcon} class="h-5 w-5 text-indigo-400" />
 					Discord Webhook Sync
 				</Card.Title>
-				<Card.Description>Paste the webhook URL of a Discord channel. Every time you post there, the message is pulled in as a changelog entry automatically.</Card.Description>
+				<Card.Description>Paste the webhook URL of a Discord channel. Every changelog update you post below is sent to that channel automatically.</Card.Description>
 			</Card.Header>
 			<Card.Content class="space-y-4">
 				{#if webhookConfigured}
