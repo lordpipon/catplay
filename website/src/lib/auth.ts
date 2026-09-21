@@ -262,6 +262,16 @@ export const auth = betterAuth({
 
 	trustedOrigins: trustedOrigins(),
 
+	rateLimit: {
+		enabled: true,
+		window: 60,
+		max: 100,
+		customRules: {
+			'/sign-in/email': { window: 60, max: 10 },
+			'/sign-up/email': { window: 60, max: 5 }
+		}
+	},
+
 	plugins: [
 		apiKey({
 			defaultPrefix: 'ctpl_',
@@ -388,7 +398,7 @@ export const auth = betterAuth({
 			updateEmailWithoutVerification: true
 		},
 		additionalFields: {
-			username: { type: 'string', required: false, input: false },
+			username: { type: 'string', required: false, input: true, inputOptions: { minLength: 3, maxLength: 30 } },
 			isBanned: { type: 'boolean', required: false, input: false },
 			banReason: { type: 'string', required: false, input: false },
 			baseCurrencyBalance: { type: 'string', required: false, input: false },

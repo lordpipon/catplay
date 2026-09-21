@@ -15,7 +15,8 @@
 		clearChatUnread,
 		ACTIVE_CHANNEL_ID,
 		REMOVED_CHAT_CHANNEL,
-		handleChatChannelRemoved
+		handleChatChannelRemoved,
+		CHAT_CHANNEL_REFRESH
 	} from '$lib/stores/chat';
 	import { getPublicUrl, formatDate } from '$lib/utils';
 	import SEO from '$lib/components/self/SEO.svelte';
@@ -25,12 +26,18 @@
 		Message01Icon,
 		ArrowLeft01Icon,
 		Search01Icon,
-		ArrowUp01Icon,
+		SentIcon,
 		UserGroupIcon,
 		PlusSignIcon,
 		UserRemove01Icon,
 		Delete01Icon,
-		Settings01Icon
+		Settings01Icon,
+		UserAdd01Icon,
+		UserCheck01Icon,
+		Cancel01Icon,
+		CrownIcon,
+		CircleArrowDataTransferHorizontalIcon,
+		Upload01Icon
 	} from '@hugeicons/core-free-icons';
 
 	interface ChatChannel {
@@ -66,6 +73,20 @@
 	let deletingGroup = $state(false);
 	let groupActionPending = $state(false);
 
+	// Group settings (rename + image)
+	let groupNameInput = $state('');
+	let groupImageInput = $state<File | undefined>(undefined);
+	let groupImagePreview = $state<string | null>(null);
+	let savingGroupSettings = $state(false);
+	let transferringLeaderId = $state<number | null>(null);
+
+	$effect(() => {
+		if (showManageGroup && activeChannel) {
+			groupNameInput = activeChannel.name && isGroup(activeChannel) ? activeChannel.name : '';
+			groupImagePreview = null;
+		}
+	});
+
 	let activeChannel = $derived(channels.find((c) => c.id === activeChannelId));
 	let messages = $derived($CHAT_MESSAGES[activeChannelId as number] || []);
 
@@ -94,6 +115,122 @@
 	let isGlobalSearch = $derived(searchQuery.trim().length > 0);
 	let hasResults = $derived(filteredChannels.length > 0);
 
+	// ---- Friends tab ----
+	let activeTab = $state<'chats' | 'friends'>('chats');
+	interface FriendRow {
+		id: number;
+		requesterId: number;
+		addresseeId: number;
+		status: string;
+		requesterName: string;
+		requesterUsername: string;
+		requesterImage: string | null;
+		addresseeName: string;
+		addresseeUsername: string;
+		addresseeImage: string | null;
+	}
+	let friendRows = $state<FriendRow[]>([]);
+	let loadingFriends = $state(false);
+	let addUsername = $state('');
+	let addingFriend = $state(false);
+
+	let acceptedFriends = $derived(friendRows.filter((f) => f.status === 'accepted'));
+	let incomingRequests = $derived(friendRows.filter((f) => f.status === 'pending' && f.addresseeId === myUserId));
+	let outgoingRequests = $derived(friendRows.filter((f) => f.status === 'pending' && f.requesterId === myUserId));
+
+	function otherUser(f: FriendRow) {
+		const otherIsRequester = f.requesterId !== myUserId;
+		return otherIsRequester
+			? { id: f.requesterId, name: f.requesterName, username: f.requesterUsername, image: f.requesterImage }
+			: { id: f.addresseeId, name: f.addresseeName, username: f.addresseeUsername, image: f.addresseeImage };
+	}
+
+	async function loadFriends() {
+		try {
+			const res = await fetch('/api/friends');
+			if (res.ok) friendRows = await res.json();
+		} catch (e) {
+			toast.error('Failed to load friends');
+		} finally {
+			loadingFriends = false;
+		}
+	}
+
+	async function sendFriendRequest() {
+		if (!addUsername.trim()) return;
+		addingFriend = true;
+		try {
+			const res = await fetch(`/api/user/lookup?username=${encodeURIComponent(addUsername.trim())}`);
+			if (!res.ok) {
+				toast.error('User not found');
+				return;
+			}
+			const target = await res.json();
+			if (Number(target.id) === myUserId) {
+				toast.error("You can't add yourself");
+				return;
+			}
+			const r = await fetch('/api/friends', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ targetUserId: Number(target.id), action: 'send' })
+			});
+			const d = await r.json();
+			if (!r.ok) {
+				toast.error(d.error || 'Failed to send request');
+				return;
+			}
+			toast.success('Friend request sent!');
+			addUsername = '';
+			await loadFriends();
+		} catch {
+			toast.error('Network error');
+		} finally {
+			addingFriend = false;
+		}
+	}
+
+	async function respondToFriend(f: FriendRow, action: 'accept' | 'decline' | 'remove') {
+		const otherId = f.requesterId === myUserId ? f.addresseeId : f.requesterId;
+		const r = await fetch('/api/friends', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ targetUserId: otherId, action })
+		});
+		if (r.ok) {
+			toast.success(action === 'accept' ? 'Friend added!' : 'Removed');
+			await loadFriends();
+			if (action === 'accept' || action === 'remove') await fetchChannels();
+		} else {
+			toast.error('Failed');
+		}
+	}
+
+	function unfriendFriend(f: FriendRow) {
+		if (!confirm('Remove this friend? Your private chat with them will also be deleted.')) return;
+		respondToFriend(f, 'remove');
+	}
+
+	async function openFriendChat(f: FriendRow) {
+		const other = otherUser(f);
+		const entry: ChatChannel = {
+			id: null,
+			type: 'DIRECT',
+			user1Id: null,
+			user2Id: null,
+			createdAt: new Date().toISOString(),
+			name: `@${other.username}`,
+			image: other.image,
+			kind: 'friend',
+			partnerId: other.id,
+			username: other.username,
+			lastMessage: null,
+			lastMessageAt: null,
+			sortAt: new Date().toISOString()
+		};
+		await openChat(entry);
+	}
+
 	onMount(async () => {
 		if (!$USER_DATA) {
 			goto('/');
@@ -101,7 +238,7 @@
 		}
 
 		myUserId = Number($USER_DATA?.id);
-		await fetchChannels();
+		await Promise.all([fetchChannels(), loadFriends()]);
 
 		const channelQuery = $page.url.searchParams.get('channel');
 		const userQuery = $page.url.searchParams.get('user');
@@ -375,31 +512,6 @@
 		}
 	}
 
-	async function hideGroup() {
-		if (!activeChannelId || groupActionPending) return;
-		groupActionPending = true;
-		try {
-			const res = await fetch(`/api/chat/channels/${activeChannelId}`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: 'hide' })
-			});
-			if (!res.ok) {
-				const d = await res.json();
-				toast.error(d.message || d.error || 'Failed to hide group');
-				return;
-			}
-			showManageGroup = false;
-			toast.success('Group hidden from your list (you stay a member)');
-			handleChatChannelRemoved(activeChannelId!);
-			await fetchChannels();
-		} catch (e) {
-			toast.error('Network error');
-		} finally {
-			groupActionPending = false;
-		}
-	}
-
 	async function leaveGroup() {
 		if (!activeChannelId || groupActionPending) return;
 		if (!confirm('Leave this group? You can only come back if someone adds you again.')) return;
@@ -425,6 +537,87 @@
 			groupActionPending = false;
 		}
 	}
+
+	async function saveGroupSettings() {
+		if (!activeChannelId || savingGroupSettings) return;
+		const name = groupNameInput.trim();
+		if (!name && !groupImageInput) {
+			toast.error('Enter a group name or pick a new image.');
+			return;
+		}
+		savingGroupSettings = true;
+		try {
+			const fd = new FormData();
+			if (name) fd.append('name', name);
+			if (groupImageInput) fd.append('image', groupImageInput);
+			const res = await fetch(`/api/chat/channels/${activeChannelId}`, {
+				method: 'POST',
+				body: fd
+			});
+			const d = await res.json();
+			if (!res.ok) {
+				toast.error(d.message || d.error || 'Failed to update group');
+				return;
+			}
+			toast.success('Group updated');
+			groupImageInput = undefined;
+			groupImagePreview = null;
+			await fetchChannels();
+		} catch {
+			toast.error('Server error');
+		} finally {
+			savingGroupSettings = false;
+		}
+	}
+
+	function onGroupImagePicked(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		if (!file.type.startsWith('image/')) {
+			toast.error('Pick an image file');
+			input.value = '';
+			return;
+		}
+		if (file.size > 5 * 1024 * 1024) {
+			toast.error('Image must be under 5 MB');
+			input.value = '';
+			return;
+		}
+		groupImageInput = file;
+		groupImagePreview = URL.createObjectURL(file);
+	}
+
+	async function transferLeadership(memberId: number) {
+		if (!activeChannelId || transferringLeaderId !== null) return;
+		if (!confirm('Transfer group leadership to this member? You will no longer be the leader.')) return;
+		transferringLeaderId = memberId;
+		try {
+			const res = await fetch(`/api/chat/channels/${activeChannelId}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'transfer', memberId })
+			});
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.message || d.error || 'Failed to transfer leadership');
+				return;
+			}
+			toast.success('Leadership transferred');
+			await fetchChannels();
+		} catch {
+			toast.error('Network error');
+		} finally {
+			transferringLeaderId = null;
+		}
+	}
+
+	// Refetch channels when another client renames the group / updates its image /
+	// transfers leadership, so the sidebar and header always stay in sync.
+	$effect(() => {
+		void $CHAT_CHANNEL_REFRESH;
+		if ($USER_DATA && !loadingChannels) fetchChannels();
+	});
 </script>
 
 <SEO
@@ -432,18 +625,12 @@
 	description="Chat with your friends and fellow traders on Catplay."
 />
 
-<div class="container mx-auto flex h-[calc(100vh-80px)] max-w-6xl flex-col p-6">
-	<div class="mb-4 flex items-center justify-between">
-		<h1 class="text-3xl font-bold">Messages</h1>
-		{#if activeChannel}
-			<Button size="xs" variant="ghost" class="gap-1 text-muted-foreground" onclick={goBackToList}>
-				<HugeiconsIcon icon={ArrowLeft01Icon} class="h-3.5 w-3.5" />
-				Back
-			</Button>
-		{/if}
+<div class="container mx-auto flex h-[calc(100vh-80px)] max-w-6xl flex-col p-3 sm:p-6">
+	<div class="mb-3 flex items-center justify-between sm:mb-4">
+		<h1 class="text-2xl font-bold sm:text-3xl">Messages</h1>
 	</div>
 
-	<div class="flex min-h-0 flex-1 gap-4">
+	<div class="flex min-h-0 flex-1 gap-2 sm:gap-4">
 		<!-- Sidebar -->
 		<Card.Root
 			class="flex flex-col overflow-hidden {activeChannelId
@@ -451,33 +638,90 @@
 				: 'w-full md:w-[340px]'} py-0"
 		>
 			<div class="border-b p-3">
-				<div class="flex items-center gap-2">
-					<div class="relative flex-1">
-						<HugeiconsIcon
-							icon={Search01Icon}
-							class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-						/>
-						<Input
-							bind:value={searchQuery}
-							placeholder="Search chats and friends..."
-							class="bg-muted/50 rounded-full pl-9"
-						/>
+					<div class="mb-2 flex items-center gap-1 rounded-full bg-muted/60 p-1">
+						<button
+							class="flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-medium transition-colors {activeTab ===
+							'chats'
+								? 'bg-primary text-primary-foreground shadow-sm'
+								: 'text-muted-foreground hover:bg-muted'}"
+							onclick={() => (activeTab = 'chats')}
+						>
+							<HugeiconsIcon icon={Message01Icon} class="h-3.5 w-3.5" />
+							Chats
+						</button>
+						<button
+							class="flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-medium transition-colors {activeTab ===
+							'friends'
+								? 'bg-primary text-primary-foreground shadow-sm'
+								: 'text-muted-foreground hover:bg-muted'}"
+							onclick={() => (activeTab = 'friends')}
+						>
+							<HugeiconsIcon icon={UserGroupIcon} class="h-3.5 w-3.5" />
+							Friends ({acceptedFriends.length + incomingRequests.length})
+						</button>
 					</div>
-					<Button
-						size="icon"
-						variant="outline"
-						class="h-8 w-8 shrink-0 rounded-full"
-						title="New group chat"
-						aria-label="New group chat"
-						onclick={() => (showCreateGroup = true)}
-					>
-						<HugeiconsIcon icon={PlusSignIcon} class="h-4 w-4" />
-					</Button>
+					{#if activeTab === 'chats'}
+						<div class="flex items-center gap-2">
+							<div class="relative flex-1">
+								<HugeiconsIcon
+									icon={Search01Icon}
+									class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+								/>
+								<Input
+									bind:value={searchQuery}
+									placeholder="Search chats and friends..."
+									class="bg-muted/50 rounded-full pl-9"
+								/>
+							</div>
+							<Button
+								size="icon"
+								variant="outline"
+								class="h-8 w-8 shrink-0 rounded-full"
+								title="New group chat"
+								aria-label="New group chat"
+								onclick={() => (showCreateGroup = true)}
+							>
+								<HugeiconsIcon icon={PlusSignIcon} class="h-4 w-4" />
+							</Button>
+						</div>
+					{:else}
+						<form
+							class="flex items-center gap-2"
+							onsubmit={(e) => {
+								e.preventDefault();
+								sendFriendRequest();
+							}}
+						>
+							<div class="relative flex-1">
+								<HugeiconsIcon
+									icon={UserAdd01Icon}
+									class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+								/>
+								<Input
+									bind:value={addUsername}
+									placeholder="Add friend by username..."
+									class="bg-muted/50 rounded-full pl-9"
+									autocomplete="off"
+								/>
+							</div>
+							<Button
+								size="icon"
+								variant="outline"
+								class="h-8 w-8 shrink-0 rounded-full"
+								title="Send friend request"
+								aria-label="Send friend request"
+								disabled={addingFriend || !addUsername.trim()}
+								onclick={sendFriendRequest}
+							>
+								<HugeiconsIcon icon={UserAdd01Icon} class="h-4 w-4" />
+							</Button>
+						</form>
+					{/if}
 				</div>
-			</div>
 
 			<div class="flex-1 overflow-y-auto">
-				{#if loadingChannels}
+				{#if activeTab === 'chats'}
+					{#if loadingChannels}
 					<div class="space-y-3 p-4">
 						{#each Array(6) as _}
 							<div class="flex items-center gap-3">
@@ -550,6 +794,144 @@
 						{/each}
 					</div>
 				{/if}
+				{:else}
+					{#if loadingFriends}
+						<div class="space-y-3 p-4">
+							{#each Array(6) as _}
+								<div class="flex items-center gap-3">
+									<div class="bg-muted h-11 w-11 animate-pulse rounded-full"></div>
+									<div class="flex-1 space-y-2">
+										<div class="bg-muted h-4 w-2/3 animate-pulse rounded"></div>
+										<div class="bg-muted h-3 w-1/3 animate-pulse rounded"></div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div class="flex flex-col gap-3 p-3">
+							{#if incomingRequests.length > 0}
+								<p class="text-muted-foreground flex items-center gap-1.5 px-1 text-[11px] font-semibold tracking-wide uppercase">
+									<HugeiconsIcon icon={UserAdd01Icon} class="h-3 w-3" />
+									Incoming ({incomingRequests.length})
+								</p>
+								<div class="flex flex-col gap-1">
+									{#each incomingRequests as f}
+										{@const other = otherUser(f)}
+										<div class="hover:bg-muted flex items-center gap-2.5 rounded-xl p-2">
+											<Avatar.Root class="h-9 w-9 shrink-0 border">
+												{#if other.image}
+													<Avatar.Image src={getPublicUrl(other.image)} />
+												{/if}
+												<Avatar.Fallback class="text-xs">{other.name?.charAt(0) || '?'}</Avatar.Fallback>
+											</Avatar.Root>
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-medium">{other.name}</p>
+												<p class="text-muted-foreground truncate text-xs">@{other.username}</p>
+											</div>
+											<Button
+												size="xs"
+												class="bg-green-600 shrink-0 hover:bg-green-500"
+												onclick={() => respondToFriend(f, 'accept')}
+											>
+												<HugeiconsIcon icon={UserCheck01Icon} class="mr-1 h-3.5 w-3.5" />Accept
+											</Button>
+											<Button
+												size="icon"
+												variant="ghost"
+												class="text-red-400 hover:text-red-300"
+												title="Decline"
+												onclick={() => respondToFriend(f, 'decline')}
+											>
+												<HugeiconsIcon icon={Cancel01Icon} class="h-3.5 w-3.5" />
+											</Button>
+										</div>
+									{/each}
+								</div>
+							{/if}
+
+							{#if outgoingRequests.length > 0}
+								<p class="text-muted-foreground flex items-center gap-1.5 px-1 text-[11px] font-semibold tracking-wide uppercase">
+									<HugeiconsIcon icon={UserAdd01Icon} class="h-3 w-3" />
+									Sent ({outgoingRequests.length})
+								</p>
+								<div class="flex flex-col gap-1">
+									{#each outgoingRequests as f}
+										{@const other = otherUser(f)}
+										<div class="flex items-center gap-2.5 rounded-xl p-2">
+											<Avatar.Root class="h-9 w-9 shrink-0 border">
+												{#if other.image}
+													<Avatar.Image src={getPublicUrl(other.image)} />
+												{/if}
+												<Avatar.Fallback class="text-xs">{other.name?.charAt(0) || '?'}</Avatar.Fallback>
+											</Avatar.Root>
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-medium">{other.name}</p>
+												<p class="text-muted-foreground truncate text-xs">@{other.username} · waiting</p>
+											</div>
+											<Button
+												size="xs"
+												variant="ghost"
+												class="text-red-400 shrink-0 hover:text-red-300"
+												onclick={() => respondToFriend(f, 'remove')}
+											>
+												Cancel
+											</Button>
+										</div>
+									{/each}
+								</div>
+							{/if}
+
+							{#if acceptedFriends.length > 0}
+								<p class="text-muted-foreground flex items-center gap-1.5 px-1 text-[11px] font-semibold tracking-wide uppercase">
+									<HugeiconsIcon icon={UserGroupIcon} class="h-3 w-3" />
+									Friends ({acceptedFriends.length})
+								</p>
+								<div class="flex flex-col gap-1">
+									{#each acceptedFriends as f}
+										{@const other = otherUser(f)}
+										<div class="hover:bg-muted flex items-center gap-2.5 rounded-xl p-2">
+											<Avatar.Root class="h-9 w-9 shrink-0 border">
+												{#if other.image}
+													<Avatar.Image src={getPublicUrl(other.image)} />
+												{/if}
+												<Avatar.Fallback class="text-xs">{other.name?.charAt(0) || '?'}</Avatar.Fallback>
+											</Avatar.Root>
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-medium">{other.name}</p>
+												<p class="text-muted-foreground truncate text-xs">@{other.username}</p>
+											</div>
+											<Button
+												size="icon"
+												variant="outline"
+												class="h-7 w-7 shrink-0"
+												title={`Chat with ${other.name}`}
+												onclick={() => openFriendChat(f)}
+											>
+												<HugeiconsIcon icon={Message01Icon} class="h-3.5 w-3.5" />
+											</Button>
+											<Button
+												size="icon"
+												variant="ghost"
+												class="text-red-400 h-7 w-7 shrink-0 hover:text-red-300"
+												title="Remove friend"
+												onclick={() => unfriendFriend(f)}
+											>
+												<HugeiconsIcon icon={UserRemove01Icon} class="h-3.5 w-3.5" />
+											</Button>
+										</div>
+									{/each}
+								</div>
+							{/if}
+
+							{#if acceptedFriends.length === 0 && incomingRequests.length === 0 && outgoingRequests.length === 0}
+								<div class="text-muted-foreground flex flex-col items-center gap-2 p-6 text-center text-sm">
+									<HugeiconsIcon icon={UserAdd01Icon} class="h-10 w-10 opacity-30" />
+									No friends yet.
+								</div>
+							{/if}
+						</div>
+					{/if}
+				{/if}
 			</div>
 		</Card.Root>
 
@@ -558,8 +940,8 @@
 			class="flex flex-1 flex-col overflow-hidden py-0 {activeChannelId ? 'flex' : 'hidden md:flex'}"
 		>
 			{#if activeChannel}
-				<div class="flex shrink-0 items-center gap-3 border-b p-4">
-					<button class="hover:bg-muted -ml-1 rounded-full p-1 md:hidden" onclick={goBackToList}>
+				<div class="flex shrink-0 items-center gap-2 border-b p-3 sm:gap-3 sm:p-4">
+					<button class="hover:bg-muted -ml-1 rounded-full p-1" onclick={goBackToList} aria-label="Back to chats">
 						<HugeiconsIcon icon={ArrowLeft01Icon} class="h-5 w-5" />
 					</button>
 					<Avatar.Root class="h-10 w-10 shrink-0 border">
@@ -568,7 +950,7 @@
 						{/if}
 						<Avatar.Fallback class="text-sm">{substringFor(activeChannel)}</Avatar.Fallback>
 					</Avatar.Root>
-					<div class="min-w-0">
+					<div class="min-w-0 flex-1">
 						<div class="truncate text-base font-semibold">{activeChannel.name}</div>
 						<div class="text-muted-foreground text-xs">
 							{isGlobal(activeChannel)
@@ -588,7 +970,7 @@
 							onclick={() => (showManageGroup = true)}
 						>
 							<HugeiconsIcon icon={Settings01Icon} class="h-3.5 w-3.5" />
-							Manage
+							<span class="hidden sm:inline">Manage</span>
 						</Button>
 					{/if}
 				</div>
@@ -651,7 +1033,7 @@
 							disabled={!messageInput.trim() || sending}
 							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
 						>
-							<HugeiconsIcon icon={ArrowUp01Icon} class="h-5 w-5" />
+							<HugeiconsIcon icon={SentIcon} class="h-4 w-4" />
 						</button>
 					</form>
 				</div>
@@ -752,14 +1134,45 @@
 			</Dialog.Title>
 			{#if activeChannel?.ownerId === myUserId}
 				<Dialog.Description>
-					You're the owner of this group. Members you remove can't see it anymore.
+					You're the leader of this group. You can rename it, change its picture, add a new
+					leader, or remove members.
 				</Dialog.Description>
 			{:else}
 				<Dialog.Description>
-					You can leave this group, or hide it from your chat list (you stay a member).
+					Change the group name or picture, or leave the group.
 				</Dialog.Description>
 			{/if}
 		</Dialog.Header>
+
+		<!-- Group name + picture -->
+		<div class="space-y-3 px-6 pb-3">
+			<div class="flex items-center gap-3">
+				<Avatar.Root class="h-12 w-12 shrink-0 border">
+					{#if groupImagePreview}
+						<Avatar.Image src={groupImagePreview} />
+					{:else if activeChannel?.image}
+						<Avatar.Image src={getPublicUrl(activeChannel.image)} />
+					{/if}
+					<Avatar.Fallback class="text-sm">{activeChannel ? substringFor(activeChannel) : '?'}</Avatar.Fallback>
+				</Avatar.Root>
+				<label class="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-dashed p-2 text-sm text-muted-foreground hover:bg-muted">
+					<HugeiconsIcon icon={Upload01Icon} class="h-4 w-4" />
+					{groupImageInput ? 'New image picked' : 'Change group picture'}
+					<input type="file" accept="image/*" class="hidden" onchange={onGroupImagePicked} />
+				</label>
+			</div>
+			<div class="flex items-center gap-2">
+				<Input bind:value={groupNameInput} placeholder="Group name" maxlength={60} class="flex-1" />
+				<Button
+					onclick={saveGroupSettings}
+					disabled={savingGroupSettings || (!groupNameInput.trim() && !groupImageInput)}
+					class="gap-1"
+				>
+					{savingGroupSettings ? 'Saving...' : 'Save'}
+				</Button>
+			</div>
+		</div>
+
 		<div class="flex max-h-[45vh] flex-col gap-1 overflow-y-auto px-6">
 			{#each activeChannel?.members ?? [] as member (member.id)}
 				<div class="hover:bg-muted flex items-center gap-3 rounded-xl p-2">
@@ -776,10 +1189,21 @@
 						{#if member.id === myUserId}
 							<span class="text-muted-foreground text-xs">(you)</span>
 						{:else if member.id === activeChannel?.ownerId}
-							<span class="text-muted-foreground text-xs">(owner)</span>
+							<span class="text-muted-foreground text-xs">(leader)</span>
 						{/if}
 					</div>
 					{#if activeChannel?.ownerId === myUserId && member.id !== activeChannel.ownerId}
+						<Button
+							size="xs"
+							variant="ghost"
+							class="shrink-0 gap-1 text-yellow-500 hover:text-yellow-400"
+							disabled={transferringLeaderId !== null}
+							onclick={() => transferLeadership(member.id)}
+							title="Make this member the group leader"
+						>
+							<HugeiconsIcon icon={CircleArrowDataTransferHorizontalIcon} class="h-3.5 w-3.5" />
+							{transferringLeaderId === member.id ? 'Transferring...' : 'Make leader'}
+						</Button>
 						<Button
 							size="xs"
 							variant="ghost"
@@ -806,29 +1230,16 @@
 					{deletingGroup ? 'Deleting...' : 'Delete group'}
 				</Button>
 			{:else}
-				<div class="flex gap-2">
-					<Button
-						variant="outline"
-						class="gap-1.5"
-						disabled={groupActionPending}
-						onclick={hideGroup}
-					>
-						{groupActionPending ? 'Working...' : 'Delete from history'}
-					</Button>
-					<Button
-						variant="destructive"
-						class="gap-1.5"
-						disabled={groupActionPending}
-						onclick={leaveGroup}
-					>
-						<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
-						Leave group
-					</Button>
-				</div>
+				<Button
+					variant="destructive"
+					class="gap-1.5"
+					disabled={groupActionPending}
+					onclick={leaveGroup}
+				>
+					<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
+					{groupActionPending ? 'Leaving...' : 'Leave group'}
+				</Button>
 			{/if}
-			<Button variant="outline" onclick={() => (showManageGroup = false)}>
-				Close
-			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

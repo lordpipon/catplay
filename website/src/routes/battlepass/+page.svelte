@@ -7,6 +7,7 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { CrownIcon, Tick01Icon, LockIcon, GiftIcon, Award01Icon, GemIcon } from '@hugeicons/core-free-icons';
 	import { USER_DATA } from '$lib/stores/user-data';
+	import SignInConfirmDialog from '$lib/components/self/SignInConfirmDialog.svelte';
 	import { goto } from '$app/navigation';
 	import { formatValue } from '$lib/utils';
 
@@ -69,16 +70,17 @@
 	}
 
 	onMount(async () => {
-		if (!$USER_DATA) { goto('/'); return; }
 		await load();
 	});
 
 	let claimingAll = $state(false);
+	let shouldSignIn = $state(false);
 
 	let claimableTiers = $derived(tiers.filter(tier => canClaim(tier)));
 
 	async function claimAll() {
 		if (claimingAll || claimableTiers.length === 0) return;
+		if (!$USER_DATA) { shouldSignIn = true; return; }
 		claimingAll = true;
 		let claimed = 0;
 		let failed = 0;
@@ -99,6 +101,7 @@
 	}
 
 	async function claim(tier: Tier) {
+		if (!$USER_DATA) { shouldSignIn = true; return; }
 		claiming = tier.id;
 		try {
 			const res = await fetch('/api/battlepass', {
@@ -116,18 +119,20 @@
 
 <SEO title="Battlepass" description="Complete tasks and earn rewards in the Catplay Battlepass." />
 
+<SignInConfirmDialog bind:open={shouldSignIn} />
+
 <div class="mx-auto max-w-4xl space-y-6 p-4">
 	<!-- Header -->
-	<div class="flex items-center justify-between">
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex items-center gap-3">
 			<HugeiconsIcon icon={Award01Icon} class="h-7 w-7 text-yellow-500" />
 			<div>
-				<h1 class="text-2xl font-bold">Battlepass</h1>
+				<h1 class="text-xl font-bold sm:text-2xl">Battlepass</h1>
 				<p class="text-muted-foreground text-sm">Complete tasks sequentially to level up</p>
 			</div>
 		</div>
 		{#if !isVip}
-			<Button onclick={() => goto('/vip')} class="bg-yellow-500 text-black hover:bg-yellow-400 gap-1">
+			<Button onclick={() => goto('/vip')} class="bg-yellow-500 text-black hover:bg-yellow-400 gap-1 self-start sm:self-auto">
 				<HugeiconsIcon icon={CrownIcon} class="h-4 w-4" />Upgrade to VIP
 			</Button>
 		{:else}
@@ -148,12 +153,12 @@
 	{:else}
 		<!-- Season info -->
 		<Card.Root class="border-primary/30 bg-primary/5">
-			<Card.Content class="p-4 flex items-center justify-between">
+			<Card.Content class="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
 				<div>
 					<p class="font-bold text-lg">Catplay Battlepass</p>
 					<p class="text-muted-foreground text-sm">Complete challenges to level up and earn rewards</p>
 				</div>
-				<div class="text-right">
+				<div class="text-left sm:text-right">
 					<p class="text-2xl font-bold">Level {currentLevel}</p>
 					<p class="text-muted-foreground text-xs">100 levels total</p>
 				</div>
@@ -186,13 +191,14 @@
 				{@const unlocked = currentLevel >= level}
 				{@const isNext = currentLevel === level - 1}
 
-				<div class="grid grid-cols-[56px_1fr_1fr] gap-2 items-stretch">
+				<div class="grid grid-cols-1 gap-2 items-stretch sm:grid-cols-[56px_1fr_1fr]">
 					<!-- Level badge -->
-					<div class="flex items-center justify-center">
+					<div class="flex items-center gap-2 sm:flex-col sm:gap-1 sm:justify-center">
 						<div class="h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0
 							{unlocked ? 'bg-primary text-primary-foreground' : isNext ? 'bg-primary/30 text-primary border border-primary/50' : 'bg-muted text-muted-foreground'}">
 							{level}
 						</div>
+						<span class="text-muted-foreground text-xs font-semibold sm:hidden">Level {level}</span>
 					</div>
 
 					<!-- Free tier -->

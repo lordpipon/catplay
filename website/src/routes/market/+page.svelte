@@ -10,7 +10,6 @@
 	import CoinIcon from '$lib/components/self/CoinIcon.svelte';
 	import MarketSkeleton from '$lib/components/self/skeletons/MarketSkeleton.svelte';
 	import SEO from '$lib/components/self/SEO.svelte';
-	import AdRectangle from '$lib/components/self/AdRectangle.svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
@@ -466,7 +465,6 @@
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-			<AdRectangle class="w-full" />
 			{#each coins as coin, index}
 				{@const volatilityBadge = getVolatilityBadge(coin.change24h)}
 				{@const globalIndex = (currentPage - 1) * perPage + index + 1}

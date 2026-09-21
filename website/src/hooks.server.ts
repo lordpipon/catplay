@@ -29,7 +29,7 @@ async function resolveUsernameOrEmail(event: RequestEvent) {
 	if (!contentType.includes('application/json')) return;
 	let body: Record<string, unknown>;
 	try {
-		body = await request.json();
+		body = await request.clone().json();
 	} catch {
 		return;
 	}

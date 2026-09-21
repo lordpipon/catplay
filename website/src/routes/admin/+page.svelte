@@ -14,6 +14,53 @@
 	} from '@hugeicons/core-free-icons';
 	import { goto } from '$app/navigation';
 	import { hasFlag } from '$lib/data/flags';
+	import { formatPrice } from '$lib/utils';
+	import { onMount } from 'svelte';
+
+	interface SystemStats {
+		totalUsers: number;
+		totalCoins: number;
+		listedCoins: number;
+		totalTransactions: number;
+		totalComments: number;
+		newUsers24h: number;
+		totalGems: number;
+		activeVipCount: number;
+		totalMarketCap: number;
+		totalVolume24h: number;
+		totalTradingVolume: number;
+	}
+
+	let stats = $state<SystemStats | null>(null);
+	let statsError = $state(false);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/admin/stats');
+			if (!res.ok) throw new Error();
+			stats = await res.json();
+		} catch {
+			statsError = true;
+		}
+	});
+
+	type StatTile = { label: string; value: string; color: string };
+
+	function statTiles(): StatTile[] {
+		if (!stats) return [];
+		return [
+			{ label: 'Total Users', value: stats.totalUsers.toLocaleString(), color: 'text-blue-500' },
+			{ label: 'New Users (24h)', value: '+' + stats.newUsers24h.toLocaleString(), color: 'text-green-500' },
+			{ label: 'Coins (Listed)', value: `${stats.listedCoins.toLocaleString()} / ${stats.totalCoins.toLocaleString()}`, color: 'text-yellow-500' },
+			{ label: 'Active VIPs', value: stats.activeVipCount.toLocaleString(), color: 'text-purple-500' },
+			{ label: 'Transactions', value: stats.totalTransactions.toLocaleString(), color: 'text-red-500' },
+			{ label: 'Comments', value: stats.totalComments.toLocaleString(), color: 'text-pink-500' },
+			{ label: 'Total Gems', value: stats.totalGems.toLocaleString(), color: 'text-emerald-500' },
+			{ label: 'Market Cap', value: formatPrice(stats.totalMarketCap), color: 'text-cyan-500' },
+			{ label: 'Volume (24h)', value: formatPrice(stats.totalVolume24h), color: 'text-orange-500' },
+			{ label: 'Trading Volume', value: formatPrice(stats.totalTradingVolume), color: 'text-indigo-500' }
+		];
+	}
 
 	const adminSections = [
 		{
@@ -108,14 +155,32 @@
 				</Card.Root>
 			{/each}
 
-			<Card.Root class="border-dashed opacity-60">
+			<Card.Root>
 				<Card.Header>
-					<div class="bg-muted rounded-md p-2">
-						<HugeiconsIcon icon={Analytics01Icon} class="h-5 w-5" />
+					<div class="flex items-center justify-between">
+						<div class="bg-muted rounded-md p-2">
+							<HugeiconsIcon icon={Analytics01Icon} class="h-5 w-5" />
+						</div>
 					</div>
 					<Card.Title class="mt-4">System Stats</Card.Title>
-					<Card.Description>Platform metrics may be coming soon</Card.Description>
+					<Card.Description>Live platform metrics</Card.Description>
 				</Card.Header>
+				<Card.Content>
+					{#if statsError}
+						<p class="text-destructive text-sm">Failed to load stats.</p>
+					{:else if !stats}
+						<p class="text-muted-foreground text-sm">Loading...</p>
+					{:else}
+						<div class="grid grid-cols-2 gap-2">
+							{#each statTiles() as item}
+								<div class="rounded-md border bg-muted/40 p-2">
+									<p class="text-muted-foreground text-xs">{item.label}</p>
+									<p class={`text-sm font-semibold ${item.color}`}>{item.value}</p>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</Card.Content>
 			</Card.Root>
 		</div>
 	</div>

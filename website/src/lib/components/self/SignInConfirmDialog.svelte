@@ -50,6 +50,7 @@
 
 	let mode = $state<'signin' | 'signup'>('signin');
 	let email = $state('');
+	let username = $state('');
 	let password = $state('');
 	let confirmPassword = $state('');
 	let showPassword = $state(false);
@@ -86,6 +87,7 @@
 					email: email.trim(),
 					password,
 					name: email.trim().split('@')[0],
+					username: username.trim() || undefined,
 					callbackURL
 				});
 				if (res.error) throw new Error(res.error.message || 'Failed to create account');
@@ -140,6 +142,16 @@
 					bind:value={email}
 					autocomplete="email"
 				/>
+				{#if mode === 'signup'}
+					<Input
+						type="text"
+						placeholder="Username (optional, 3–30 characters)"
+						minlength={3}
+						maxlength={30}
+						bind:value={username}
+						autocomplete="username"
+					/>
+				{/if}
 				<div class="relative">
 					<Input
 						type={showPassword ? 'text' : 'password'}

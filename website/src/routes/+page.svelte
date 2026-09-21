@@ -9,7 +9,6 @@
 	import HomeSkeleton from '$lib/components/self/skeletons/HomeSkeleton.svelte';
 	import HomeSeasonSkeleton from '$lib/components/self/skeletons/HomeSeasonSkeleton.svelte';
 	import SeasonCard from '$lib/components/self/SeasonCard.svelte';
-	import AdRectangle from '$lib/components/self/AdRectangle.svelte';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -145,9 +144,6 @@
 					{/if}
 				</div>
 			{/if}
-			<div class="order-last md:col-span-2 lg:order-none lg:col-span-1 lg:col-start-4">
-				<AdRectangle class="w-full" />
-			</div>
 			{#each coins.slice(0, 6) as coin (coin.symbol)}
 				<a href={`/coin/${coin.symbol}`} class="block">
 					<Card.Root class="hover:bg-card/50 h-full transition-all hover:shadow-md">

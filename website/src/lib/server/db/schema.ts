@@ -932,6 +932,8 @@ export const chatChannel = pgTable(
 		user1Id: integer('user1_id').references(() => user.id, { onDelete: 'cascade' }),
 		user2Id: integer('user2_id').references(() => user.id, { onDelete: 'cascade' }),
 		ownerId: integer('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+		name: varchar('name', { length: 60 }),
+		image: text('image'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => ({
@@ -1124,30 +1126,5 @@ export const seasonTrophy = pgTable(
 		seasonUserUnique: unique('season_trophy_unique').on(table.seasonId, table.userId),
 		userIdIdx: index('season_trophy_user_id_idx').on(table.userId),
 		seasonIdIdx: index('season_trophy_season_id_idx').on(table.seasonId)
-	})
-);
-
-// ---- Advertisements (sponsored coin placements, paid in gems) ----
-
-export const advertisement = pgTable(
-	'advertisement',
-	{
-		id: serial('id').primaryKey(),
-		userId: integer('user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		coinId: integer('coin_id')
-			.notNull()
-			.references(() => coin.id, { onDelete: 'cascade' }),
-		durationHours: integer('duration_hours').notNull(),
-		totalCost: decimal('total_cost', { precision: 30, scale: 8 }).notNull(),
-		startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
-		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
-	},
-	(table) => ({
-		userIdIdx: index('advertisement_user_id_idx').on(table.userId),
-		coinIdIdx: index('advertisement_coin_id_idx').on(table.coinId),
-		expiresAtIdx: index('advertisement_expires_at_idx').on(table.expiresAt)
 	})
 );

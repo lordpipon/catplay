@@ -6,8 +6,6 @@
 
 	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
 	import PasswordSetupPrompt from '$lib/components/self/PasswordSetupPrompt.svelte';
-	import AdBanner from '$lib/components/self/AdBanner.svelte';
-	import AdSidePanels from '$lib/components/self/AdSidePanels.svelte';
 
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { onMount, untrack } from 'svelte';
@@ -15,7 +13,6 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { page } from '$app/state';
 	import { websocketController } from '$lib/stores/websocket';
-	import { initAds, ADS } from '$lib/stores/ads';
 import { startVipUserPolling } from '$lib/stores/vip-users';
 	import { dev } from '$app/environment';
 	import { RenderScan } from 'svelte-render-scan';
@@ -35,7 +32,6 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 	onMount(() => {
 		websocketController.connect();
 		startVipUserPolling();
-		initAds();
 
 		// Register service worker (for web push) silently; no permission prompt here.
 		if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -114,7 +110,6 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 			'/live': $_('page_names.live_trades'),
 			'/treemap': $_('page_names.treemap'),
 			'/about': $_('page_names.about'),
-			'/ads': SITE_NAME,
 			'/legal/privacy': 'Privacy Policy',
 			'/legal/terms': 'Terms of Service',
 			'/shop': $_('page_names.shop')
@@ -138,9 +133,6 @@ import { startVipUserPolling } from '$lib/stores/vip-users';
 <!-- <RenderScan /> -->
 <ModeWatcher />
 <Toaster richColors={true} />
-
-<AdSidePanels hideAds={$USER_DATA?.hideAds} />
-<AdBanner hideAds={$USER_DATA?.hideAds} ads={$ADS} />
 
 <Sidebar.Provider>
 	<AppSidebar />

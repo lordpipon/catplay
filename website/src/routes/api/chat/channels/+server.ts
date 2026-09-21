@@ -211,10 +211,15 @@ export const GET: RequestHandler = async ({ request }) => {
 		} else if (c.type === 'GROUP') {
 			members = groupMemberMap.get(c.id) ?? [];
 			const otherMembers = members.filter((m) => m.id !== userId);
-			name = otherMembers.length
-				? otherMembers.slice(0, 3).map((m) => m.username).join(', ') +
-					(otherMembers.length > 3 ? ` +${otherMembers.length - 3}` : '')
-				: 'Group Chat';
+			// Custom group name (if set by the members). Fall back to member names.
+			name = c.name || (
+				otherMembers.length
+					? otherMembers.slice(0, 3).map((m) => m.username).join(', ') +
+						(otherMembers.length > 3 ? ` +${otherMembers.length - 3}` : '')
+					: 'Group Chat'
+			);
+			// Custom group image, or fall back to the creator's profile picture.
+			image = c.image || members.find((m) => m.id === c.ownerId)?.image || null;
 		} else if (c.type === 'ADMIN_GLOBAL') {
 			name = 'Global Admin Chat';
 		} else if (c.type === 'HEAD_ADMIN') {
@@ -404,10 +409,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 
 		const allMemberIds = [userId, ...uniqueIds];
+		const groupName = typeof body.name === 'string' ? body.name.trim().slice(0, 60) : '';
 
 		const [newChannel] = await db
 			.insert(chatChannel)
-			.values({ type: 'GROUP', ownerId: userId })
+			.values({ type: 'GROUP', ownerId: userId, name: groupName || null })
 			.returning();
 
 		await db.insert(chatChannelMember).values(
@@ -421,16 +427,19 @@ export const POST: RequestHandler = async ({ request }) => {
 			.where(inArray(user.id, allMemberIds));
 
 		const otherMembers = memberUsers.filter((m) => m.id !== userId);
-		const name = otherMembers
-			.slice(0, 3)
-			.map((m) => m.username)
-			.join(', ') + (otherMembers.length > 3 ? ` +${otherMembers.length - 3}` : '');
+		const name = groupName || (
+			otherMembers
+				.slice(0, 3)
+				.map((m) => m.username)
+				.join(', ') + (otherMembers.length > 3 ? ` +${otherMembers.length - 3}` : '')
+		);
+		const creator = memberUsers.find((m) => m.id === userId);
 
 		return json({
 			channel: {
 				...newChannel,
 				name,
-				image: null,
+				image: newChannel.image || creator?.image || null,
 				members: memberUsers,
 				kind: 'channel',
 				lastMessage: null,

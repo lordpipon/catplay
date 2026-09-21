@@ -7,12 +7,13 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { CrownIcon, GemIcon, CheckmarkCircle01Icon, Ticket01Icon, Coins01Icon, DiscordIcon } from '@hugeicons/core-free-icons';
 	import { USER_DATA } from '$lib/stores/user-data';
-	import { goto } from '$app/navigation';
+	import SignInConfirmDialog from '$lib/components/self/SignInConfirmDialog.svelte';
 
 	interface VipStatus { isVip: boolean; gems: number; cost: number; expiresAt: string | null; }
 	let status = $state<VipStatus | null>(null);
 	let loading = $state(true);
 	let buying = $state(false);
+	let shouldSignIn = $state(false);
 
 	const PERKS = [
 		{ icon: Ticket01Icon, title: 'Premium Battlepass', desc: 'Unlock all premium tier rewards each season' },
@@ -31,7 +32,6 @@
 	}
 
 	onMount(async () => {
-		if (!$USER_DATA) { goto('/'); return; }
 		try {
 			const res = await fetch('/api/vip');
 			if (res.ok) status = await res.json();
@@ -40,6 +40,7 @@
 
 	async function purchaseVip() {
 		if (!status || buying) return;
+		if (!$USER_DATA) { shouldSignIn = true; return; }
 		buying = true;
 		try {
 			const res = await fetch('/api/vip', { method: 'POST' });
@@ -52,6 +53,8 @@
 </script>
 
 <SEO title="VIP" description="Unlock premium features with VIP status." />
+
+<SignInConfirmDialog bind:open={shouldSignIn} />
 
 <div class="mx-auto max-w-xl space-y-6 p-4">
 	<div class="flex items-center gap-3">
@@ -112,11 +115,11 @@
 					<Button
 						class="w-full bg-yellow-500 text-black hover:bg-yellow-400 h-12 text-base font-bold"
 						onclick={purchaseVip}
-						disabled={buying || (status?.gems ?? 0) < 1000}
+						disabled={!$USER_DATA ? false : buying || (status?.gems ?? 0) < 1000}
 					>
-						{buying ? 'Processing...' : (status?.gems ?? 0) < 2000 ? `Need ${(2000 - (status?.gems ?? 0)).toLocaleString()} more gems` : 'Activate VIP — 2,000 Gems / month'}
+						{buying ? 'Processing...' : !$USER_DATA ? 'Sign in to buy VIP' : (status?.gems ?? 0) < 2000 ? `Need ${(2000 - (status?.gems ?? 0)).toLocaleString()} more gems` : 'Activate VIP — 2,000 Gems / month'}
 					</Button>
-					{#if (status?.gems ?? 0) < 1000}
+					{#if $USER_DATA && (status?.gems ?? 0) < 1000}
 						<p class="text-center text-xs text-muted-foreground">
 							Get gems in the <a href="/shop" class="text-purple-400 hover:underline">Shop</a> or through events & promo codes.
 						</p>

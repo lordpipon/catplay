@@ -15,7 +15,8 @@
 		GemIcon,
 		CrownIcon,
 		BinaryCodeIcon,
-		DiscordIcon
+		DiscordIcon,
+		StarIcon
 	} from '@hugeicons/core-free-icons';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';

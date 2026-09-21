@@ -4,7 +4,7 @@ import { PUBLIC_WEBSOCKET_URL } from '$env/static/public';
 import { NOTIFICATIONS, UNREAD_COUNT } from './notifications';
 import { NEW_ACHIEVEMENTS_COUNT } from './achievements';
 import { USER_DATA } from './user-data';
-import { addChatMessage, incrementChatUnread, CHAT_UNREAD_COUNT, ACTIVE_CHANNEL_ID, handleChatChannelRemoved } from './chat';
+import { addChatMessage, incrementChatUnread, CHAT_UNREAD_COUNT, ACTIVE_CHANNEL_ID, handleChatChannelRemoved, triggerChatChannelRefresh } from './chat';
 import { toast } from 'svelte-sonner';
 import { goto } from '$app/navigation';
 import { hasFlag, UserFlags } from '$lib/data/flags';
@@ -311,6 +311,11 @@ function handleWebSocketMessage(event: MessageEvent): void {
 				if (get(ACTIVE_CHANNEL_ID) !== message.data.channelId) {
 					incrementChatUnread(message.data.channelId);
 				}
+				break;
+
+			case 'chat_channel_updated':
+				// Group renamed / image changed / leader transferred → refetch the channel list.
+				triggerChatChannelRefresh();
 				break;
 
 			case 'chat_channel_removed':

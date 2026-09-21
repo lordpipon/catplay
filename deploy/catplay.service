@@ -1,0 +1,16 @@
+[Unit]
+Description=Catplay website (docker compose stack)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=lordpipon
+WorkingDirectory=/home/lordpipon/catplay
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose stop
+
+[Install]
+WantedBy=multi-user.target

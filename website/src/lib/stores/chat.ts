@@ -20,6 +20,14 @@ export const CHAT_UNREAD_COUNT = writable<number>(0);
 // Channel the user is currently viewing (from the chat page)
 export const ACTIVE_CHANNEL_ID = writable<number | null>(null);
 
+// Bumped whenever a channel is renamed/image/a leader transfer happens server-side,
+// so the chat page can refetch the channel list in the background.
+export const CHAT_CHANNEL_REFRESH = writable(0);
+
+export function triggerChatChannelRefresh() {
+	CHAT_CHANNEL_REFRESH.update((n) => n + 1);
+}
+
 // Channel that was just removed (group deleted / member kicked) — the chat page
 // watches this to drop it from the UI immediately.
 export const REMOVED_CHAT_CHANNEL = writable<number | null>(null);
