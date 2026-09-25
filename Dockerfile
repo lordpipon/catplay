@@ -31,6 +31,7 @@ RUN mkdir -p .svelte-kit
 
 # Generate SvelteKit types and build
 
+ENV NODE_OPTIONS="--max-old-space-size=1408"
 RUN npm run build
 
 FROM base-node AS build-websocket
