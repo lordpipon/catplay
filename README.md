@@ -15,8 +15,8 @@ Catplay is a realistic cryptocurrency trading simulator that lets you experience
 - Public REST API with keys for building custom scripts & bots
 
 ---
-![Preview 2](github_assets/preview2.png)
-![Preview](github_assets/preview.png)
+![Preview 2](github_assets/previewc2.png)
+![Preview](github_assets/previewc.png)
 
 ## Development Setup
 
