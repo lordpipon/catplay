@@ -177,6 +177,12 @@ Before you begin, make sure you have the following installed:
 
     This will automatically start all required services, including the Database, Redis and the websocket server, as Docker containers. You do not need to run the websocket server manually when using Docker Compose for deployment.
 
+   > **Upgrading an existing install:** if the `uploads` volume was created before the image chowned `/app/uploads`, profile picture uploads will fail with `EACCES`. Fix it once with:
+   >
+   > ```bash
+   > docker exec -u root <app-container> chown -R node:node /app/uploads
+   > ```
+
 2. The app will be available at http://localhost:3002
 
 #### Manual Deployment

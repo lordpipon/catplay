@@ -8,6 +8,9 @@ services:
       - "5905-5906:3000"
     env_file:
       - website/.env
+    environment:
+      # SvelteKit defaults to 512K; avatars are allowed up to 1MB (+ multipart overhead)
+      BODY_SIZE_LIMIT: 2M
     depends_on:
       - websocket
       - redis

@@ -111,7 +111,8 @@ export async function POST({ request }) {
 			);
 			updates.image = key;
 		} catch (e) {
-			console.error('Avatar upload failed, continuing without update:', e);
+			console.error('Avatar upload failed:', e);
+			throw error(500, 'Failed to upload profile picture. Please try again.');
 		}
 	}
 
