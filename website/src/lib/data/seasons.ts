@@ -62,6 +62,10 @@ export const TROPHY_CLASSES: Record<SeasonTrophyTier, string> = {
 	PARTICIPANT: 'bg-muted text-muted-foreground border-border'
 };
 
+const SEASON_NAMES: Record<number, string> = {
+  3: "Season 3: Advanced Horizon", 
+};
+
 export function getSeasonName(number: number): string {
-	return `Season ${number}`;
+  return SEASON_NAMES[number] || `Season ${number}`;
 }
