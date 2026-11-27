@@ -84,7 +84,7 @@
 	}
 
 	function removeFriend(f: Friend) {
-		if (!confirm('Remove this friend? Your private chat with them will also be deleted.')) return;
+		if (!confirm('Remove this friend? Your old messages will stay in your chat list.')) return;
 		respond(f, 'remove');
 	}
 </script>

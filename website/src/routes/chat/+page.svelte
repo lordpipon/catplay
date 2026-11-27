@@ -71,6 +71,7 @@
 	let showManageGroup = $state(false);
 	let removingMemberId = $state<number | null>(null);
 	let deletingGroup = $state(false);
+	let deletingConversation = $state(false);
 	let groupActionPending = $state(false);
 
 	// Group settings (rename + image)
@@ -207,7 +208,7 @@
 	}
 
 	function unfriendFriend(f: FriendRow) {
-		if (!confirm('Remove this friend? Your private chat with them will also be deleted.')) return;
+		if (!confirm('Remove this friend? Your old messages will stay in your chat list.')) return;
 		respondToFriend(f, 'remove');
 	}
 
@@ -514,7 +515,7 @@
 
 	async function leaveGroup() {
 		if (!activeChannelId || groupActionPending) return;
-		if (!confirm('Leave this group? You can only come back if someone adds you again.')) return;
+		if (!confirm('Leave this group? The group will stay for the other members.')) return;
 		groupActionPending = true;
 		try {
 			const res = await fetch(`/api/chat/channels/${activeChannelId}`, {
@@ -535,6 +536,38 @@
 			toast.error('Network error');
 		} finally {
 			groupActionPending = false;
+		}
+	}
+
+	async function deleteConversation() {
+		if (!activeChannelId || !activeChannel || deletingConversation) return;
+		if (
+			!confirm(
+				'Remove this conversation from your chat list? The other person can still see the old messages.'
+			)
+		)
+			return;
+		deletingConversation = true;
+		try {
+			const res = await fetch(`/api/chat/channels/${activeChannelId}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'hide' })
+			});
+			if (!res.ok) {
+				const d = await res.json();
+				toast.error(d.message || d.error || 'Failed to delete conversation');
+				return;
+			}
+			toast.success('Conversation removed from your chat list');
+			handleChatChannelRemoved(activeChannelId!);
+			ACTIVE_CHANNEL_ID.set(null);
+			activeChannelId = null;
+			await fetchChannels();
+		} catch (e) {
+			toast.error('Network error');
+		} finally {
+			deletingConversation = false;
 		}
 	}
 
@@ -962,17 +995,42 @@
 										: activeChannel.type?.replace('_', ' ')}
 						</div>
 					</div>
-					{#if isGroup(activeChannel) && activeChannel.members?.some((m) => m.id === myUserId)}
-						<Button
-							size="xs"
-							variant="outline"
-							class="ml-auto shrink-0 gap-1"
-							onclick={() => (showManageGroup = true)}
-						>
-							<HugeiconsIcon icon={Settings01Icon} class="h-3.5 w-3.5" />
-							<span class="hidden sm:inline">Manage</span>
-						</Button>
-					{/if}
+					<div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+						{#if isGroup(activeChannel) && activeChannel.members?.some((m) => m.id === myUserId)}
+							<Button
+								size="xs"
+								variant="outline"
+								class="gap-1"
+								onclick={() => (showManageGroup = true)}
+							>
+								<HugeiconsIcon icon={Settings01Icon} class="h-3.5 w-3.5" />
+								<span class="hidden sm:inline">Manage</span>
+							</Button>
+							<Button
+								size="xs"
+								variant="ghost"
+								class="text-destructive hover:text-destructive gap-1"
+								disabled={groupActionPending}
+								onclick={leaveGroup}
+							>
+								<HugeiconsIcon icon={UserRemove01Icon} class="h-3.5 w-3.5" />
+								<span class="hidden sm:inline">Leave</span>
+							</Button>
+						{:else if !isGlobal(activeChannel) && activeChannel.type === 'DIRECT' && activeChannel.id !== null}
+							<Button
+								size="xs"
+								variant="ghost"
+								class="text-destructive hover:text-destructive gap-1"
+								disabled={deletingConversation}
+								onclick={deleteConversation}
+							>
+								<HugeiconsIcon icon={Delete01Icon} class="h-3.5 w-3.5" />
+								<span class="hidden sm:inline"
+									>{deletingConversation ? 'Deleting...' : 'Delete chat'}</span
+								>
+							</Button>
+						{/if}
+					</div>
 				</div>
 
 				<div class="flex flex-1 flex-col gap-3 overflow-y-auto p-4" bind:this={scrollViewport}>
@@ -985,17 +1043,34 @@
 						{#each messages as msg (msg.id)}
 							{@const isMe = msg.senderId === Number($USER_DATA?.id)}
 							<div class="flex max-w-[80%] gap-2.5 {isMe ? 'flex-row-reverse self-end' : 'self-start'}">
-								<Avatar.Root class="mt-1 h-8 w-8 shrink-0">
-									{#if msg.senderImage}
-										<Avatar.Image src={getPublicUrl(msg.senderImage)} />
-									{/if}
-									<Avatar.Fallback class="text-xs"
-										>{msg.senderUsername?.charAt(0)?.toUpperCase() || '?'}</Avatar.Fallback
+								{#if msg.senderId && msg.senderUsername && msg.senderUsername !== 'Unknown'}
+									<a
+										href={`/user/${msg.senderId}`}
+										class="mt-1 shrink-0"
+										aria-label={`View @${msg.senderUsername}'s profile`}
 									>
-								</Avatar.Root>
+										<Avatar.Root class="h-8 w-8 shrink-0">
+											{#if msg.senderImage}
+												<Avatar.Image src={getPublicUrl(msg.senderImage)} />
+											{/if}
+											<Avatar.Fallback class="text-xs">{msg.senderUsername.charAt(0).toUpperCase()}</Avatar.Fallback>
+										</Avatar.Root>
+									</a>
+								{:else}
+									<Avatar.Root class="mt-1 h-8 w-8 shrink-0">
+										{#if msg.senderImage}
+											<Avatar.Image src={getPublicUrl(msg.senderImage)} />
+										{/if}
+										<Avatar.Fallback class="text-xs">?</Avatar.Fallback>
+									</Avatar.Root>
+								{/if}
 								<div class="flex min-w-0 flex-col gap-1 {isMe ? 'items-end' : 'items-start'}">
 									<div class="text-muted-foreground flex items-center gap-2 px-1 text-[11px]">
-										{msg.senderUsername}
+										{#if msg.senderId && msg.senderUsername && msg.senderUsername !== 'Unknown'}
+											<a href={`/user/${msg.senderId}`} class="hover:underline">{msg.senderUsername}</a>
+										{:else}
+											<span>{msg.senderUsername || 'Unknown'}</span>
+										{/if}
 										<span>·</span>
 										<span>{formatDate(msg.createdAt)}</span>
 									</div>
@@ -1220,15 +1295,28 @@
 		</div>
 		<Dialog.Footer class="flex items-center justify-between gap-2">
 			{#if activeChannel?.ownerId === myUserId}
-				<Button
-					variant="destructive"
-					class="shrink-0 gap-1.5"
-					disabled={deletingGroup || !activeChannel}
-					onclick={deleteGroup}
-				>
-					<HugeiconsIcon icon={Delete01Icon} class="h-4 w-4" />
-					{deletingGroup ? 'Deleting...' : 'Delete group'}
-				</Button>
+				<div class="flex flex-wrap gap-2">
+					<Button
+						variant="destructive"
+						class="shrink-0 gap-1.5"
+						disabled={deletingGroup || !activeChannel}
+						onclick={deleteGroup}
+					>
+						<HugeiconsIcon icon={Delete01Icon} class="h-4 w-4" />
+						{deletingGroup ? 'Deleting...' : 'Delete group'}
+					</Button>
+					{#if (activeChannel.members?.length ?? 0) > 1}
+						<Button
+							variant="outline"
+							class="gap-1.5"
+							disabled={groupActionPending}
+							onclick={leaveGroup}
+						>
+							<HugeiconsIcon icon={UserRemove01Icon} class="h-4 w-4" />
+							{groupActionPending ? 'Leaving...' : 'Leave group'}
+						</Button>
+					{/if}
+				</div>
 			{:else}
 				<Button
 					variant="destructive"

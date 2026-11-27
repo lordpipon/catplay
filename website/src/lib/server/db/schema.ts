@@ -978,8 +978,8 @@ export const chatChannelMember = pgTable(
 	})
 );
 
-// Groups a user chose to hide ("delete from history"). The user stays a member but
-// the channel is filtered out of their chat list until they unhide/are re-added.
+// Conversations a user chose to hide ("delete from history"). The channel and its
+// messages stay intact; it is only filtered out of that user's chat list.
 export const chatChannelHidden = pgTable(
 	'chat_channel_hidden',
 	{

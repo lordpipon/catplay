@@ -39,18 +39,15 @@ export const GET: RequestHandler = async ({ request }) => {
 		.where(eq(chatChannelMember.userId, userId));
 	let groupChannelIds = groupRows.map((r) => r.channelId);
 
-	// Groups the user chose to hide ("delete from history") are filtered out of
-	// the list, but the user stays a member (messages still land if re-added).
-	if (groupChannelIds.length > 0) {
-		const hiddenRows = await db
-			.select({ channelId: chatChannelHidden.channelId })
-			.from(chatChannelHidden)
-			.where(eq(chatChannelHidden.userId, userId));
-		if (hiddenRows.length > 0) {
-			const hiddenIds = hiddenRows.map((r) => r.channelId);
-			const visible = groupChannelIds.filter((id) => !hiddenIds.includes(id));
-			groupChannelIds = visible;
-		}
+	// Conversations the user chose to hide ("delete from history") are filtered
+	// out of the list, but the messages stay intact for both participants.
+	const hiddenRows = await db
+		.select({ channelId: chatChannelHidden.channelId })
+		.from(chatChannelHidden)
+		.where(eq(chatChannelHidden.userId, userId));
+	const hiddenIds = hiddenRows.map((r) => r.channelId);
+	if (hiddenIds.length > 0) {
+		groupChannelIds = groupChannelIds.filter((id) => !hiddenIds.includes(id));
 	}
 	if (groupChannelIds.length > 0) {
 		conditions.push(
@@ -66,10 +63,20 @@ export const GET: RequestHandler = async ({ request }) => {
 		conditions.push(eq(chatChannel.type, 'DIRECT'));
 	}
 
-	const channels = await db
+	const channelRows = await db
 		.select()
 		.from(chatChannel)
 		.where(or(...conditions));
+	const channels = channelRows.filter((c) => !hiddenIds.includes(c.id));
+
+	// Hidden DM partners must not reappear as virtual friend entries.
+	const hiddenPartnerIds = new Set<number>();
+	for (const c of channelRows) {
+		if (!hiddenIds.includes(c.id) || c.type !== 'DIRECT') continue;
+		if (c.user1Id === null || c.user2Id === null) continue;
+		if (c.user1Id === userId) hiddenPartnerIds.add(c.user2Id);
+		else if (c.user2Id === userId) hiddenPartnerIds.add(c.user1Id);
+	}
 
 	// For DMs, fetch the other user's info to display; for groups, fetch all members
 	const memberChannelIds = channels.map((c) => c.id);
@@ -303,8 +310,9 @@ export const GET: RequestHandler = async ({ request }) => {
 			.leftJoin(addressee, eq(addressee.id, friendship.addresseeId))
 			.where(and(or(eq(friendship.requesterId, myId), eq(friendship.addresseeId, myId)), eq(friendship.status, 'accepted')));
 
-		const existingPartnerIds = new Set<number>(
-			merged
+		const existingPartnerIds = new Set<number>([
+			...hiddenPartnerIds,
+			...merged
 				.filter(
 					(c) =>
 						c.type === 'DIRECT' &&
@@ -314,7 +322,7 @@ export const GET: RequestHandler = async ({ request }) => {
 						(Number(c.user1Id) === myId || Number(c.user2Id) === myId)
 				)
 				.map((c) => (Number(c.user1Id) === myId ? Number(c.user2Id) : Number(c.user1Id)))
-		);
+		]);
 
 		friendRows.forEach((f) => {
 			const otherIsRequester = f.requesterId !== myId;

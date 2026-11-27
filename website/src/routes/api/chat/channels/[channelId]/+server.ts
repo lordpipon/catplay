@@ -88,6 +88,35 @@ export const POST: RequestHandler = async ({ request, params }) => {
 	if (isNaN(channelId)) throw error(400, 'Invalid channel ID');
 
 	const contentType = request.headers.get('content-type') || '';
+	const body = contentType.includes('multipart/form-data')
+		? {}
+		: await request.json().catch(() => ({}));
+	const action = body.action;
+
+	// Direct-message conversations can be removed from the viewer's own list.
+	// The channel and its messages stay intact for the other participant.
+	if (action === 'hide') {
+		const [direct] = await db
+			.select()
+			.from(chatChannel)
+			.where(eq(chatChannel.id, channelId))
+			.limit(1);
+		if (
+			direct?.type === 'DIRECT' &&
+			direct.user1Id !== null &&
+			direct.user2Id !== null &&
+			(direct.user1Id === userId || direct.user2Id === userId)
+		) {
+			await db.insert(chatChannelHidden).values({ channelId, userId }).onConflictDoNothing();
+			try {
+				await redis.publish(
+					`chat:${userId}`,
+					JSON.stringify({ type: 'chat_channel_removed', channelId })
+				);
+			} catch {}
+			return json({ success: true, action: 'hide' });
+		}
+	}
 
 	const channel = await getChannel(channelId);
 	if (!(await isMember(channelId, userId))) throw error(404, 'Not a member of this group');
@@ -135,9 +164,6 @@ export const POST: RequestHandler = async ({ request, params }) => {
 			}
 		});
 	}
-
-	const body = await request.json().catch(() => ({}));
-	const action = body.action;
 
 	if (action === 'transfer') {
 		// Leader gives leadership to another member.
@@ -194,8 +220,20 @@ export const POST: RequestHandler = async ({ request, params }) => {
 	}
 
 	if (action === 'leave') {
+		const memberIds = await memberUserIds(channelId);
+
+		// Leaders can leave too: hand leadership to another member automatically.
 		if (channel.ownerId === userId) {
-			throw error(400, 'Transfer leadership first, then you can leave');
+			const successorId = memberIds.find((id) => id !== userId);
+			if (!successorId) throw error(400, 'You are the only member. Delete the group instead');
+			await db
+				.update(chatChannel)
+				.set({ ownerId: successorId })
+				.where(eq(chatChannel.id, channelId));
+			await broadcastUpdate(channelId, memberIds, {
+				ownerId: successorId,
+				transferredTo: successorId
+			});
 		}
 
 		await db
@@ -205,6 +243,12 @@ export const POST: RequestHandler = async ({ request, params }) => {
 		await db
 			.delete(chatChannelHidden)
 			.where(and(eq(chatChannelHidden.channelId, channelId), eq(chatChannelHidden.userId, userId)));
+		try {
+			await redis.publish(
+				`chat:${userId}`,
+				JSON.stringify({ type: 'chat_channel_removed', channelId })
+			);
+		} catch {}
 
 		return json({ success: true, action: 'leave' });
 	}
