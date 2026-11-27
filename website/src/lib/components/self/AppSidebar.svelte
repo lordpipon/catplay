@@ -162,11 +162,10 @@
 			<img src="/catplay.png" class="h-5 w-5" alt={SITE_NAME} />
 			<div class="flex items-center gap-2">
 				<span class="text-base font-semibold">{SITE_NAME}</span>
-				{#if hasFlag($USER_DATA?.flags, 'IS_ADMIN', 'IS_HEAD_ADMIN')}
-					<span class="text-muted-foreground text-xs">| Admin</span>
-				{/if}
 				{#if hasFlag($USER_DATA?.flags, 'IS_HEAD_ADMIN')}
 					<span class="text-muted-foreground text-xs">| HeadAdmin</span>
+				{:else if hasFlag($USER_DATA?.flags, 'IS_ADMIN')}
+					<span class="text-muted-foreground text-xs">| Admin</span>
 				{/if}
 			</div>
 		</div>
