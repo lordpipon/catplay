@@ -9,7 +9,8 @@
 		Rocket01Icon,
 		ChampionIcon,
 		BinaryCodeIcon,
-		CrownIcon
+		Award01Icon,
+		UserGroupIcon
 	} from '@hugeicons/core-free-icons';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { getPrestigeName, getPrestigeColor } from '$lib/utils';
@@ -73,6 +74,9 @@
 	{#if hasFlag(user.flags, 'FOUNDER_BADGE')}
 		<SilentBadge icon={Rocket01Icon} text="Supporter" class="text-cyan-400 {badgeClass}" />
 	{/if}
+	{#if hasFlag(user.flags, 'CONTRIBUTOR_BADGE')}
+		<SilentBadge icon={UserGroupIcon} text="Contributor" class="text-emerald-400 {badgeClass}" />
+	{/if}
 	{#if user.halloweenBadge2026}
 		<SilentBadge icon="/pumpkin.png" text="Halloween 2026" class="text-primary {badgeClass}" />
 	{/if}
@@ -104,6 +108,6 @@
 		<SilentBadge icon={BinaryCodeIcon} text="Developer" class="text-violet-400 {badgeClass}" />
 	{/if}
 	{#if hasFlag(user.flags, 'OWNER_BADGE')}
-		<SilentBadge icon={CrownIcon} text="Owner" class="text-amber-400 {badgeClass}" />
+		<SilentBadge icon={Award01Icon} text="Owner" class="text-amber-400 {badgeClass}" />
 	{/if}
 </div>

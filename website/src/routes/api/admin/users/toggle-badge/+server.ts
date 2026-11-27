@@ -8,9 +8,10 @@ import { hasFlag, UserFlags } from '$lib/data/flags';
 import type { RequestHandler } from './$types';
 
 const BADGES = {
-	supporter: { flag: UserFlags.FOUNDER_BADGE, label: 'Supporter' },
-	developer: { flag: UserFlags.DEVELOPER_BADGE, label: 'Developer' },
-	owner: { flag: UserFlags.OWNER_BADGE, label: 'Owner' },
+	supporter: { flagName: 'FOUNDER_BADGE', label: 'Supporter' },
+	developer: { flagName: 'DEVELOPER_BADGE', label: 'Developer' },
+	owner: { flagName: 'OWNER_BADGE', label: 'Owner' },
+	contributor: { flagName: 'CONTRIBUTOR_BADGE', label: 'Contributor' },
 	halloween: { label: 'Halloween' }
 } as const;
 
@@ -59,11 +60,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		hasBadge = !!target.halloweenBadge2026;
 		newData = { halloweenBadge2026: !hasBadge, updatedAt: new Date() };
 	} else {
-		const { flag } = BADGES[key as 'supporter' | 'developer' | 'owner'];
-		hasBadge = hasFlag(
-			target.flags,
-			key === 'supporter' ? 'FOUNDER_BADGE' : key === 'developer' ? 'DEVELOPER_BADGE' : 'OWNER_BADGE'
-		);
+		const { flagName } = BADGES[key];
+		const flag = UserFlags[flagName];
+		hasBadge = hasFlag(target.flags, flagName);
 		const newFlags = hasBadge ? target.flags & ~flag : target.flags | flag;
 		newData = { flags: newFlags, updatedAt: new Date() };
 	}

@@ -10,7 +10,8 @@ export const UserFlags = {
 	NO_PROMOCODES: 1n << 8n,
 	IS_VIP: 1n << 9n,
 	DEVELOPER_BADGE: 1n << 10n,
-	OWNER_BADGE: 1n << 11n
+	OWNER_BADGE: 1n << 11n,
+	CONTRIBUTOR_BADGE: 1n << 12n
 } as const;
 export function hasFlag(
 	_flags: bigint | number | string | undefined,

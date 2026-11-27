@@ -18,7 +18,9 @@
 		DiscordIcon,
 		StarIcon,
 		Rocket01Icon,
-		LanternIcon
+		LanternIcon,
+		Award01Icon,
+		UserGroupIcon
 	} from '@hugeicons/core-free-icons';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
@@ -43,7 +45,7 @@
 
 	// Special Badges State
 	let badgeUsername = $state('');
-	let badgeLoading = $state<'supporter' | 'developer' | 'owner' | 'halloween' | null>(null);
+	let badgeLoading = $state<'supporter' | 'developer' | 'owner' | 'contributor' | 'halloween' | null>(null);
 
 	// Prestige State
 	let prestigeUsername = $state('');
@@ -199,7 +201,7 @@
 		}
 	}
 
-	async function toggleBadge(badge: 'supporter' | 'developer' | 'owner' | 'halloween') {
+	async function toggleBadge(badge: 'supporter' | 'developer' | 'owner' | 'contributor' | 'halloween') {
 		if (!badgeUsername.trim()) { toast.error('Enter a username first.'); return; }
 		badgeLoading = badge;
 		try {
@@ -509,8 +511,16 @@
 							disabled={!badgeUsername.trim() || badgeLoading !== null}
 							class="bg-amber-500 text-white hover:bg-amber-600"
 						>
-							<HugeiconsIcon icon={CrownIcon} class="h-4 w-4" />
+							<HugeiconsIcon icon={Award01Icon} class="h-4 w-4" />
 							{badgeLoading === 'owner' ? 'Toggling...' : 'Owner'}
+						</Button>
+						<Button
+							onclick={() => toggleBadge('contributor')}
+							disabled={!badgeUsername.trim() || badgeLoading !== null}
+							class="bg-emerald-500 text-white hover:bg-emerald-600"
+						>
+							<HugeiconsIcon icon={UserGroupIcon} class="h-4 w-4" />
+							{badgeLoading === 'contributor' ? 'Toggling...' : 'Contributor'}
 						</Button>
 						<Button
 							onclick={() => toggleBadge('halloween')}
