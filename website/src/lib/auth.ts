@@ -331,7 +331,8 @@ export const auth = betterAuth({
 		}),
 		twoFactor({
 			issuer: SITE_NAME,
-			skipVerificationOnEnable: true,
+			// Only mark 2FA enabled after a valid code is verified. A reload before
+			// verification discards the QR setup and the user must start again.
 			otpOptions: {
 				sendOTP: async ({ user, otp }) => {
 					await sendVerificationCodeEmail(user.email, otp, 'sign-in', 5);
