@@ -150,20 +150,41 @@
 				return;
 			}
 
-			const res = await signIn.email({
-				email: email.trim(),
-				password,
-				callbackURL
-			});
-			if (res.error) {
-				const code = (res.error as any)?.code;
-				if (code === 'EMAIL_NOT_VERIFIED' || String(res.error.message ?? '').toLowerCase().includes('verify')) {
-					await askForCode('email-verification');
-					return;
+			const identifier = email.trim();
+			let signedIn: any;
+			if (identifier.includes('@')) {
+				signedIn = await signIn.email({
+					email: identifier,
+					password,
+					callbackURL
+				});
+				if (signedIn.error) {
+					const code = (signedIn.error as any)?.code;
+					if (code === 'EMAIL_NOT_VERIFIED' || String(signedIn.error.message ?? '').toLowerCase().includes('verify')) {
+						await askForCode('email-verification');
+						return;
+					}
+					throw new Error(signedIn.error.message || 'Invalid email or password');
 				}
-				throw new Error(res.error.message || 'Invalid email or password');
+			} else {
+				const response = await fetch('/api/auth/sign-in-identifier', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ identifier, password, callbackURL })
+				});
+				const data = await response.json().catch(() => ({}));
+				const authError = data?.error ?? data;
+				if (!response.ok) {
+					const code = authError?.code;
+					if (code === 'EMAIL_NOT_VERIFIED' || String(authError?.message ?? '').toLowerCase().includes('verify')) {
+						await askForCode('email-verification');
+						return;
+					}
+					throw new Error(authError?.message || 'Invalid username or password');
+				}
+				signedIn = { data };
 			}
-			if ((res.data as any)?.twoFactorRedirect) {
+			if (signedIn?.data?.twoFactorRedirect) {
 				stage = 'twoFactor';
 				toast.info('Enter your two-factor code to finish signing in.');
 				return;
@@ -360,11 +381,11 @@
 						</Button>
 					</div>
 					<Input
-						type="email"
+						type="text"
 						required
-						placeholder="you@example.com"
+						placeholder={mode === 'signup' ? 'you@example.com' : 'username@example.com or username'}
 						bind:value={email}
-						autocomplete="email"
+						autocomplete="username"
 					/>
 					{#if mode === 'signup'}
 						<Input
