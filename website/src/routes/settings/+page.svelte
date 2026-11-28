@@ -35,6 +35,7 @@
 	import { haptic } from '$lib/stores/haptics';
 	import { Select } from 'bits-ui';
 	import { formatTimezone, timezoneList } from '$lib/utils/timezones';
+	import qrcode from '$lib/qrcode-generator';
 
 	let shouldSignIn = $state(false);
 	let name = $state($USER_DATA?.name || '');
@@ -386,6 +387,7 @@
 	let passkeys = $state<PasskeyRow[]>([]);
 	let passkeyName = $state('');
 	let totpUri = $state('');
+	let totpQrDataUrl = $state('');
 	let backupCodes = $state<string[]>([]);
 	let twoFactorCode = $state('');
 	let twoFactorPassword = $state('');
@@ -447,6 +449,18 @@
 		}
 	}
 
+	function buildTotpQr(uri: string): string {
+		if (!uri || typeof document === 'undefined') return '';
+		try {
+			const qr = qrcode(0, 'M');
+			qr.addData(uri);
+			qr.make();
+			return qr.createDataURL(4, 4);
+		} catch {
+			return '';
+		}
+	}
+
 	async function beginTwoFactor() {
 		if (!twoFactorPassword) {
 			toast.error('Enter your password to enable 2FA');
@@ -460,8 +474,9 @@
 				return;
 			}
 			totpUri = String((res.data as any)?.totpURI ?? '');
+			totpQrDataUrl = buildTotpQr(totpUri);
 			backupCodes = Array.isArray((res.data as any)?.backupCodes) ? (res.data as any).backupCodes : [];
-			toast.success('Scan the authenticator link below, then enter a code to confirm.');
+			toast.success('Scan the QR code or use the setup link below, then enter a code to confirm.');
 		} finally {
 			twoFactorBusy = false;
 		}
@@ -480,6 +495,7 @@
 				return;
 			}
 			totpUri = '';
+			totpQrDataUrl = '';
 			backupCodes = [];
 			twoFactorCode = '';
 			twoFactorPassword = '';
@@ -1225,9 +1241,22 @@
 							</div>
 							{#if totpUri}
 								<div class="space-y-2 rounded-md bg-muted/40 p-3">
-									<p class="text-xs font-medium">Open this link in your authenticator app:</p>
+									{#if totpQrDataUrl}
+										<div class="flex justify-center">
+											<img
+												src={totpQrDataUrl}
+												alt="Scan this QR code with your authenticator app"
+												class="bg-background h-40 w-40 rounded-md p-2"
+											/>
+										</div>
+										<p class="text-muted-foreground text-center text-xs">
+											Scan with your phone, or use the setup link below.
+										</p>
+									{:else}
+										<p class="text-xs font-medium">Open this link in your authenticator app:</p>
+									{/if}
 									<Input value={totpUri} readonly />
-									<a href={totpUri} class="text-primary text-xs underline" target="_blank" rel="noreferrer">
+									<a href={totpUri} class="text-primary cursor-pointer text-xs" target="_blank" rel="noreferrer">
 										Open authenticator setup link
 									</a>
 									<Input

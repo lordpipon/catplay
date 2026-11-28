@@ -49,13 +49,14 @@
 		open?: boolean;
 	}>();
 
-	type Stage = 'credentials' | 'verify' | 'reset' | 'twoFactor';
+	type Stage = 'credentials' | 'verify' | 'reset' | 'twoFactor' | 'magicLink';
 	type VerifyPurpose = 'email-verification' | 'sign-in';
 
 	let mode = $state<'signin' | 'signup'>('signin');
 	let stage = $state<Stage>('credentials');
 	let verifyPurpose = $state<VerifyPurpose>('email-verification');
 	let email = $state('');
+	let magicLinkEmail = $state('');
 	let username = $state('');
 	let password = $state('');
 	let confirmPassword = $state('');
@@ -96,11 +97,24 @@
 	}
 
 	async function askForCode(purpose: VerifyPurpose) {
+		const target = email.trim();
+		if (!target) {
+			toast.error('Enter your email first');
+			return;
+		}
 		verifyPurpose = purpose;
 		stage = 'verify';
 		otp = '';
-		await client.emailOtp.sendVerificationOtp({ email: email.trim(), type: purpose });
-		toast.success(`Code sent to ${email.trim()}`);
+		loading = true;
+		try {
+			const res = await client.emailOtp.sendVerificationOtp({ email: target, type: purpose });
+			if (res.error) throw new Error(res.error.message || 'Could not send code');
+			toast.success(`Code sent to ${target}`);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Could not send code');
+		} finally {
+			loading = false;
+		}
 	}
 
 	async function onEmailSubmit(e: SubmitEvent) {
@@ -283,16 +297,22 @@
 		}
 	}
 
+	function openMagicLinkPrompt() {
+		magicLinkEmail = email.trim();
+		stage = 'magicLink';
+	}
+
 	async function sendMagicLink() {
-		if (!email.trim()) {
+		const target = magicLinkEmail.trim();
+		if (!target) {
 			toast.error('Enter your email first');
 			return;
 		}
 		loading = true;
 		try {
-			const res = await client.signIn.magicLink({ email: email.trim(), callbackURL });
+			const res = await client.signIn.magicLink({ email: target, callbackURL });
 			if (res.error) throw new Error(res.error.message || 'Could not send magic link');
-			toast.success(`Sign-in link sent to ${email.trim()}`);
+			toast.success(`Sign-in link sent to ${target}`);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Could not send magic link');
 		} finally {
@@ -312,6 +332,8 @@
 					Enter the reset code and choose a new password.
 				{:else if stage === 'twoFactor'}
 					Enter the code from your authenticator app.
+				{:else if stage === 'magicLink'}
+					Enter the email address where we should send your one-time sign-in link.
 				{:else}
 					{$_('sign_in.form.description')}
 				{/if}
@@ -404,12 +426,12 @@
 
 				{#if mode === 'signin'}
 					<div class="flex justify-end gap-3 text-xs">
-						<button type="button" class="text-primary underline" onclick={() => requestPasswordReset()}>
+						<button type="button" class="text-primary cursor-pointer" onclick={() => requestPasswordReset()}>
 							Forgot password?
 						</button>
 						<button
 							type="button"
-							class="text-primary underline"
+							class="text-primary cursor-pointer"
 							onclick={() => askForCode('sign-in')}
 						>
 							Sign in with code
@@ -440,8 +462,8 @@
 					<Button variant="outline" size="sm" onclick={signInWithPasskey} disabled={loading}>
 						Use passkey
 					</Button>
-					<Button variant="outline" size="sm" onclick={sendMagicLink} disabled={loading}>
-						Email me a link
+					<Button variant="outline" size="sm" onclick={openMagicLinkPrompt} disabled={loading}>
+						Magic link
 					</Button>
 				</div>
 
@@ -453,6 +475,23 @@
 						>{$_('sign_in.form.terms.3')}</a
 					>
 				</p>
+			</div>
+		{:else if stage === 'magicLink'}
+			<div class="flex flex-col gap-3 py-2">
+				<Input
+					type="email"
+					required
+					placeholder="you@example.com"
+					bind:value={magicLinkEmail}
+					autocomplete="email"
+					onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && sendMagicLink()}
+				/>
+				<Button onclick={sendMagicLink} disabled={loading || !magicLinkEmail.trim()}>
+					Send magic link
+				</Button>
+				<button type="button" class="text-muted-foreground cursor-pointer text-xs" onclick={resetToCredentials}>
+					Back
+				</button>
 			</div>
 		{:else if stage === 'verify'}
 			<div class="flex flex-col gap-3 py-2">
@@ -467,12 +506,12 @@
 				<div class="flex justify-between text-xs">
 					<button
 						type="button"
-						class="text-primary underline"
+						class="text-primary cursor-pointer"
 						onclick={() => askForCode(verifyPurpose)}
 					>
 						Resend code
 					</button>
-					<button type="button" class="text-muted-foreground underline" onclick={resetToCredentials}>
+					<button type="button" class="text-muted-foreground cursor-pointer" onclick={resetToCredentials}>
 						Back
 					</button>
 				</div>
@@ -502,10 +541,10 @@
 					Reset Password
 				</Button>
 				<div class="flex justify-between text-xs">
-					<button type="button" class="text-primary underline" onclick={requestPasswordReset}>
+					<button type="button" class="text-primary cursor-pointer" onclick={requestPasswordReset}>
 						Resend code
 					</button>
-					<button type="button" class="text-muted-foreground underline" onclick={resetToCredentials}>
+					<button type="button" class="text-muted-foreground cursor-pointer" onclick={resetToCredentials}>
 						Back
 					</button>
 				</div>
@@ -538,7 +577,7 @@
 						Use emailed code
 					</Button>
 				</div>
-				<button type="button" class="text-muted-foreground text-xs underline" onclick={resetToCredentials}>
+				<button type="button" class="text-muted-foreground cursor-pointer text-xs" onclick={resetToCredentials}>
 					Back
 				</button>
 			</div>

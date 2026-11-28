@@ -325,7 +325,7 @@ export const auth = betterAuth({
 			sendMagicLink: async ({ email, url }) => {
 				await sendMagicLinkEmail(email, url);
 			},
-			disableSignUp: true,
+			disableSignUp: false,
 			expiresIn: 300,
 			rateLimit: { window: 60, max: 3 }
 		}),
