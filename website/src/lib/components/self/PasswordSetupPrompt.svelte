@@ -6,13 +6,14 @@
 	import { toast } from 'svelte-sonner';
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { LockIcon, Tick01Icon } from '@hugeicons/core-free-icons';
+	import { LockIcon, Tick01Icon, ViewIcon, ViewOffIcon } from '@hugeicons/core-free-icons';
 
 	const DISMISS_KEY = 'password-setup-dismissed-at';
 
 	let open = $state(false);
 	let password = $state('');
 	let confirmPassword = $state('');
+	let showPassword = $state(false);
 	let saving = $state(false);
 	let checked = $state(false);
 	let attempted = $state(false);
@@ -73,6 +74,7 @@
 			open = false;
 			password = '';
 			confirmPassword = '';
+			showPassword = false;
 			toast.success('Password set! You can now sign in with email too.');
 		} catch {
 			toast.error('Failed to set password');
@@ -101,17 +103,46 @@
 		<div class="space-y-3">
 			<div class="space-y-1.5">
 				<Label for="psp-pass">New Password</Label>
-				<Input id="psp-pass" type="password" bind:value={password} placeholder="At least 8 characters" />
+				<div class="relative">
+					<Input
+						id="psp-pass"
+						type={showPassword ? 'text' : 'password'}
+						bind:value={password}
+						placeholder="At least 8 characters"
+						class="pr-10"
+					/>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+						onclick={() => (showPassword = !showPassword)}
+						aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+						tabindex={-1}
+					>
+						<HugeiconsIcon icon={showPassword ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+					</button>
+				</div>
 			</div>
 			<div class="space-y-1.5">
 				<Label for="psp-confirm">Confirm Password</Label>
-				<Input
-					id="psp-confirm"
-					type="password"
-					bind:value={confirmPassword}
-					onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && setPassword()}
-					placeholder="Repeat your password"
-				/>
+				<div class="relative">
+					<Input
+						id="psp-confirm"
+						type={showPassword ? 'text' : 'password'}
+						bind:value={confirmPassword}
+						onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && setPassword()}
+						placeholder="Repeat your password"
+						class="pr-10"
+					/>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+						onclick={() => (showPassword = !showPassword)}
+						aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+						tabindex={-1}
+					>
+						<HugeiconsIcon icon={showPassword ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+					</button>
+				</div>
 			</div>
 			<div class="flex gap-2 pt-1">
 				<Button class="flex-1" onclick={setPassword} disabled={saving}>

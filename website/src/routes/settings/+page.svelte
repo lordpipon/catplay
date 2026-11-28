@@ -21,7 +21,9 @@
 		ArrowLeft01Icon,
 		ArrowRight01Icon,
 		Clock,
-		Down
+		Down,
+		ViewIcon,
+		ViewOffIcon
 	} from '@hugeicons/core-free-icons';
 	import * as Pagination from '$lib/components/ui/pagination';
 	import { toast } from 'svelte-sonner';
@@ -376,6 +378,7 @@
 	let confirmNewPassword = $state('');
 	let setPass1 = $state('');
 	let setPass2 = $state('');
+	let showPasswords = $state(false);
 	let secBusy = $state(false);
 
 	type PasskeyRow = {
@@ -1114,13 +1117,41 @@
 								Set a password so you can also sign in with your email address.
 							</p>
 							<div class="grid gap-2 sm:grid-cols-2">
-								<Input type="password" placeholder="New password (min 8 chars)" bind:value={setPass1} />
-								<Input
-									type="password"
-									placeholder="Confirm password"
-									bind:value={setPass2}
-									onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && setPasswordInline()}
-								/>
+								<div class="relative">
+									<Input
+										type={showPasswords ? 'text' : 'password'}
+										placeholder="New password (min 8 chars)"
+										bind:value={setPass1}
+										class="pr-10"
+									/>
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+										onclick={() => (showPasswords = !showPasswords)}
+										aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+										tabindex={-1}
+									>
+										<HugeiconsIcon icon={showPasswords ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+									</button>
+								</div>
+								<div class="relative">
+									<Input
+										type={showPasswords ? 'text' : 'password'}
+										placeholder="Confirm password"
+										bind:value={setPass2}
+										onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && setPasswordInline()}
+										class="pr-10"
+									/>
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+										onclick={() => (showPasswords = !showPasswords)}
+										aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+										tabindex={-1}
+									>
+										<HugeiconsIcon icon={showPasswords ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+									</button>
+								</div>
 							</div>
 							<Button size="sm" onclick={setPasswordInline} disabled={secBusy}>Set Password</Button>
 						</div>
@@ -1129,14 +1160,58 @@
 						<div class="rounded-lg border p-4 space-y-3">
 							<h4 class="text-sm font-medium">Change Password</h4>
 							<div class="grid gap-2 sm:grid-cols-3">
-								<Input type="password" placeholder="Current password" bind:value={currentPassword} />
-								<Input type="password" placeholder="New password" bind:value={newPassword} />
-								<Input
-									type="password"
-									placeholder="Confirm new password"
-									bind:value={confirmNewPassword}
-									onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && changePassword()}
-								/>
+								<div class="relative">
+									<Input
+										type={showPasswords ? 'text' : 'password'}
+										placeholder="Current password"
+										bind:value={currentPassword}
+										class="pr-10"
+									/>
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+										onclick={() => (showPasswords = !showPasswords)}
+										aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+										tabindex={-1}
+									>
+										<HugeiconsIcon icon={showPasswords ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+									</button>
+								</div>
+								<div class="relative">
+									<Input
+										type={showPasswords ? 'text' : 'password'}
+										placeholder="New password"
+										bind:value={newPassword}
+										class="pr-10"
+									/>
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+										onclick={() => (showPasswords = !showPasswords)}
+										aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+										tabindex={-1}
+									>
+										<HugeiconsIcon icon={showPasswords ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+									</button>
+								</div>
+								<div class="relative">
+									<Input
+										type={showPasswords ? 'text' : 'password'}
+										placeholder="Confirm new password"
+										bind:value={confirmNewPassword}
+										onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && changePassword()}
+										class="pr-10"
+									/>
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+										onclick={() => (showPasswords = !showPasswords)}
+										aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
+										tabindex={-1}
+									>
+										<HugeiconsIcon icon={showPasswords ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+									</button>
+								</div>
 							</div>
 							<Button size="sm" onclick={changePassword} disabled={secBusy || !currentPassword || !newPassword}>
 								Update Password

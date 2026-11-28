@@ -524,16 +524,40 @@
 					maxlength={6}
 					bind:value={otp}
 				/>
-				<Input
-					type={showPassword ? 'text' : 'password'}
-					placeholder="New password (min. 8 characters)"
-					bind:value={password}
-				/>
-				<Input
-					type={showPassword ? 'text' : 'password'}
-					placeholder="Confirm new password"
-					bind:value={confirmPassword}
-				/>
+				<div class="relative">
+					<Input
+						type={showPassword ? 'text' : 'password'}
+						placeholder="New password (min. 8 characters)"
+						bind:value={password}
+						class="pr-10"
+					/>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+						onclick={() => (showPassword = !showPassword)}
+						aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+						tabindex={-1}
+					>
+						<HugeiconsIcon icon={showPassword ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+					</button>
+				</div>
+				<div class="relative">
+					<Input
+						type={showPassword ? 'text' : 'password'}
+						placeholder="Confirm new password"
+						bind:value={confirmPassword}
+						class="pr-10"
+					/>
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+						onclick={() => (showPassword = !showPassword)}
+						aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+						tabindex={-1}
+					>
+						<HugeiconsIcon icon={showPassword ? ViewOffIcon : ViewIcon} class="h-4 w-4" />
+					</button>
+				</div>
 				<Button
 					onclick={resetPassword}
 					disabled={loading || otp.trim().length < 6 || password.length < 8 || password !== confirmPassword}
