@@ -1,4 +1,4 @@
-import { json, error } from '@sveltejs/kit';
+import { json, error, isHttpError } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { user, coin, transaction, userPortfolio } from '$lib/server/db/schema';
 import { eq, desc, sql, count, and, gte } from 'drizzle-orm';
@@ -26,14 +26,17 @@ export async function GET({ params, request }) {
 				image: true,
 				createdAt: true,
 				baseCurrencyBalance: true,
+				isAdmin: true,
 				loginStreak: true,
 				prestigeLevel: true,
+				halloweenBadge2025: true,
+				halloweenBadge2026: true,
 				arcadeWins: true,
 				arcadeLosses: true,
 				nameColor: true,
+				founderBadge: true,
 				timezone: true,
-				flags: true,
-				halloweenBadge2026: true
+				flags: true
 			}
 		});
 
@@ -42,109 +45,119 @@ export async function GET({ params, request }) {
 		}
 
 		const actualUserId = userProfile.id;
+		const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+		const within24h = gte(transaction.timestamp, twentyFourHoursAgo);
 
-		// get created coins
-		const createdCoins = await db
-			.select({
-				id: coin.id,
-				name: coin.name,
-				symbol: coin.symbol,
-				icon: coin.icon,
-				currentPrice: coin.currentPrice,
-				marketCap: coin.marketCap,
-				volume24h: coin.volume24h,
-				change24h: coin.change24h,
-				createdAt: coin.createdAt
-			})
-			.from(coin)
-			.where(eq(coin.creatorId, actualUserId))
-			.orderBy(desc(coin.createdAt))
-			.limit(10);
+		const [createdCoins, portfolioHoldings, recentTransactions, transactionStats, seasonTrophies, trophyData] =
+			await Promise.all([
+				db
+					.select({
+						id: coin.id,
+						name: coin.name,
+						symbol: coin.symbol,
+						icon: coin.icon,
+						currentPrice: coin.currentPrice,
+						marketCap: coin.marketCap,
+						volume24h: coin.volume24h,
+						change24h: coin.change24h,
+						createdAt: coin.createdAt
+					})
+					.from(coin)
+					.where(eq(coin.creatorId, actualUserId))
+					.orderBy(desc(coin.createdAt))
+					.limit(10),
 
-		// get portfolio value and holdings count
-		const portfolioHoldings = await db
-			.select({
-				quantity: userPortfolio.quantity,
-				currentPrice: coin.currentPrice,
-				poolBaseCurrencyAmount: coin.poolBaseCurrencyAmount,
-				poolCoinAmount: coin.poolCoinAmount
-			})
-			.from(userPortfolio)
-			.innerJoin(coin, eq(userPortfolio.coinId, coin.id))
-			.where(eq(userPortfolio.userId, actualUserId));
+				db
+					.select({
+						quantity: userPortfolio.quantity,
+						currentPrice: coin.currentPrice,
+						poolBaseCurrencyAmount: coin.poolBaseCurrencyAmount,
+						poolCoinAmount: coin.poolCoinAmount,
+						symbol: coin.symbol,
+						name: coin.name,
+						icon: coin.icon,
+						change24h: coin.change24h
+					})
+					.from(userPortfolio)
+					.innerJoin(coin, eq(userPortfolio.coinId, coin.id))
+					.where(eq(userPortfolio.userId, actualUserId)),
 
+				db
+					.select({
+						id: transaction.id,
+						type: transaction.type,
+						coinSymbol: coin.symbol,
+						coinName: coin.name,
+						coinIcon: coin.icon,
+						quantity: transaction.quantity,
+						pricePerCoin: transaction.pricePerCoin,
+						totalBaseCurrencyAmount: transaction.totalBaseCurrencyAmount,
+						timestamp: transaction.timestamp,
+						senderUsername: sql<string>`(SELECT username FROM ${user} WHERE id = ${transaction.senderUserId})`,
+						recipientUsername: sql<string>`(SELECT username FROM ${user} WHERE id = ${transaction.recipientUserId})`,
+						senderUserId: transaction.senderUserId,
+						recipientUserId: transaction.recipientUserId,
+						note: transaction.note
+					})
+					.from(transaction)
+					.innerJoin(coin, eq(transaction.coinId, coin.id))
+					.where(eq(transaction.userId, actualUserId))
+					.orderBy(desc(transaction.timestamp))
+					.limit(10),
+
+				db
+					.select({
+						totalTransactions: count(),
+						totalBuyVolume: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'BUY' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END), 0)`,
+						totalSellVolume: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'SELL' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END), 0)`,
+						transactions24h: sql<number>`COUNT(*) FILTER (WHERE ${within24h})`.mapWith(Number),
+						buyVolume24h: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'BUY' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END) FILTER (WHERE ${within24h}), 0)`,
+						sellVolume24h: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'SELL' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END) FILTER (WHERE ${within24h}), 0)`
+					})
+					.from(transaction)
+					.where(eq(transaction.userId, actualUserId)),
+
+				getUserTrophies(actualUserId),
+				getBestTrophy(actualUserId)
+			]);
+
+		const { bestTrophy, trophyCount } = trophyData;
+
+		// Pool-based AMM valuation (Catplay)
 		const holdingsValue = portfolioHoldings.reduce((total, holding) => {
 			const quantity = Number(holding.quantity);
 			const baseCurrency = Number(holding.poolBaseCurrencyAmount);
 			const coinAmount = Number(holding.poolCoinAmount);
-
-			var k = baseCurrency * coinAmount;
-			var newCoinAmount = coinAmount + quantity;
-			var newBaseCurrency = k / newCoinAmount;
-			var value = baseCurrency - newBaseCurrency;
+			const k = baseCurrency * coinAmount;
+			const newCoinAmount = coinAmount + quantity;
+			const newBaseCurrency = k / newCoinAmount;
+			const value = baseCurrency - newBaseCurrency;
 			return total + value;
 		}, 0);
 
-		const portfolioStats = {
-			holdingsCount: portfolioHoldings.length,
-			totalValue: holdingsValue
-		};
-
-		const seasonTrophies = await getUserTrophies(actualUserId);
-		const { bestTrophy, trophyCount } = await getBestTrophy(actualUserId);
-
-		const recentTransactions = await db
-			.select({
-				id: transaction.id,
-				type: transaction.type,
-				coinSymbol: coin.symbol,
-				coinName: coin.name,
-				coinIcon: coin.icon,
-				quantity: transaction.quantity,
-				pricePerCoin: transaction.pricePerCoin,
-				totalBaseCurrencyAmount: transaction.totalBaseCurrencyAmount,
-				timestamp: transaction.timestamp,
-				senderUsername: sql<string>`(SELECT username FROM ${user} WHERE id = ${transaction.senderUserId})`,
-				recipientUsername: sql<string>`(SELECT username FROM ${user} WHERE id = ${transaction.recipientUserId})`,
-				senderUserId: transaction.senderUserId,
-				recipientUserId: transaction.recipientUserId,
-				note: transaction.note
+		const holdings = portfolioHoldings
+			.map((holding) => {
+				const quantity = Number(holding.quantity);
+				const price = Number(holding.currentPrice);
+				return {
+					symbol: holding.symbol,
+					name: holding.name,
+					icon: holding.icon,
+					quantity,
+					currentPrice: price,
+					value: quantity * price,
+					change24h: Number(holding.change24h)
+				};
 			})
-			.from(transaction)
-			.innerJoin(coin, eq(transaction.coinId, coin.id))
-			.where(eq(transaction.userId, actualUserId))
-			.orderBy(desc(transaction.timestamp))
-			.limit(10);
+			.sort((a, b) => b.value - a.value)
+			.slice(0, 25);
 
 		const baseCurrencyBalance = parseFloat(userProfile.baseCurrencyBalance);
-		const calculatedHoldingsValue = portfolioStats.totalValue || 0;
+		const calculatedHoldingsValue = holdingsValue || 0;
 		const totalPortfolioValue = baseCurrencyBalance + calculatedHoldingsValue;
-
-		// get all transaction statistics
-		const transactionStats = await db
-			.select({
-				totalTransactions: count(),
-				totalBuyVolume: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'BUY' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END), 0)`,
-				totalSellVolume: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'SELL' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END), 0)`
-			})
-			.from(transaction)
-			.where(eq(transaction.userId, actualUserId));
-
-		const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-		const transactionStats24h = await db
-			.select({
-				transactions24h: count(),
-				buyVolume24h: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'BUY' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END), 0)`,
-				sellVolume24h: sql<number>`COALESCE(SUM(CASE WHEN ${transaction.type} = 'SELL' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END), 0)`
-			})
-			.from(transaction)
-			.where(
-				and(eq(transaction.userId, actualUserId), gte(transaction.timestamp, twentyFourHoursAgo))
-			);
 
 		const requestSession = await auth.api.getSession({ headers: request.headers });
 		const sessionUserId = requestSession?.user ? Number(requestSession.user.id) : undefined;
-
 		const follow = await getFollowSummary(actualUserId, sessionUserId);
 
 		return json({
@@ -152,7 +165,7 @@ export async function GET({ params, request }) {
 				...userProfile,
 				baseCurrencyBalance,
 				totalPortfolioValue,
-				flags: userProfile.flags.toString(),
+				flags: userProfile.flags?.toString(),
 				bestTrophy,
 				trophyCount,
 				seasonTrophies
@@ -161,20 +174,23 @@ export async function GET({ params, request }) {
 				totalPortfolioValue,
 				baseCurrencyBalance,
 				holdingsValue: calculatedHoldingsValue,
-				holdingsCount: portfolioStats.holdingsCount || 0,
+				holdingsCount: portfolioHoldings.length,
 				coinsCreated: createdCoins.length,
 				totalTransactions: transactionStats[0]?.totalTransactions || 0,
 				totalBuyVolume: transactionStats[0]?.totalBuyVolume || 0,
 				totalSellVolume: transactionStats[0]?.totalSellVolume || 0,
-				transactions24h: transactionStats24h[0]?.transactions24h || 0,
-				buyVolume24h: transactionStats24h[0]?.buyVolume24h || 0,
-				sellVolume24h: transactionStats24h[0]?.sellVolume24h || 0
+				transactions24h: transactionStats[0]?.transactions24h || 0,
+				buyVolume24h: transactionStats[0]?.buyVolume24h || 0,
+				sellVolume24h: transactionStats[0]?.sellVolume24h || 0
 			},
 			createdCoins,
+			holdings,
 			recentTransactions,
-			follow
+			follow,
+			seasonTrophies
 		});
 	} catch (e) {
+		if (isHttpError(e)) throw e;
 		console.error('Failed to fetch user profile:', e);
 		throw error(500, 'Failed to fetch user profile');
 	}

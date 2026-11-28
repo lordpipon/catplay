@@ -217,6 +217,9 @@
 					type="text"
 					bind:value={recipientUsername}
 					placeholder={$_('portfolio.send_money.recipient.1')}
+					autocapitalize="none"
+					autocorrect="off"
+					spellcheck="false"
 					class="flex-1"
 				/>
 			</div>
@@ -283,7 +286,8 @@
 					<Input
 						id="amount"
 						type="number"
-						step={transferType === 'CASH' ? '0.01' : '1'}
+						inputmode="decimal"
+						step={transferType === 'CASH' ? '0.01' : '0.000001'}
 						min="0"
 						bind:value={amount}
 						placeholder="0.00"

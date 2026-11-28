@@ -322,6 +322,7 @@
 						<Input
 							id="mine-count"
 							type="number"
+							inputmode="numeric"
 							min={MIN_MINES}
 							max={24}
 							value={mineCount}
@@ -367,8 +368,12 @@
 					<Input
 						id="bet-amount"
 						type="text"
+						inputmode="decimal"
 						value={betAmountDisplay}
 						oninput={handleBetAmountInput}
+						onkeydown={(event: KeyboardEvent) => {
+							if (event.key === 'Enter') startGame();
+						}}
 						onblur={handleBetAmountBlur}
 						disabled={isPlaying}
 						placeholder="Enter bet amount"

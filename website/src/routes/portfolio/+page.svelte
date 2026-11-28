@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PullToRefresh from '$lib/components/self/PullToRefresh.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import DataTable from '$lib/components/self/DataTable.svelte';
@@ -29,9 +30,24 @@
 	let sendMoneyModalOpen = $state(false);
 	let shouldSignIn = $state(false);
 
-	onMount(async () => {
-		await Promise.all([loadPortfolioData(), fetchRecentTransactions()]);
-		loading = false;
+	const REFRESH_INTERVAL_MS = 15_000;
+
+	onMount(() => {
+		Promise.all([loadPortfolioData(), fetchRecentTransactions()]).then(() => {
+			loading = false;
+		});
+
+		const refresh = () => {
+			if (document.visibilityState !== 'visible' || !$USER_DATA || loading) return;
+			void fetchPortfolioData();
+		};
+		const interval = setInterval(refresh, REFRESH_INTERVAL_MS);
+		document.addEventListener('visibilitychange', refresh);
+
+		return () => {
+			clearInterval(interval);
+			document.removeEventListener('visibilitychange', refresh);
+		};
 	});
 
 	async function loadPortfolioData() {
@@ -77,6 +93,13 @@
 	let hasHoldings = $derived(portfolioData && portfolioData.coinHoldings.length > 0);
 	let hasTransactions = $derived(transactions.length > 0);
 
+	let holdingsRows = $derived(
+		(portfolioData?.coinHoldings ?? []).map((holding) => ({
+			...holding,
+			profit: holding.costBasis && holding.costBasis > 0 ? holding.value - holding.costBasis : null
+		}))
+	);
+
 	let holdingsColumns = $derived([
 		{
 			key: 'coin',
@@ -113,6 +136,17 @@
 				component: 'badge',
 				variant: value >= 0 ? 'success' : 'destructive',
 				text: `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+			})
+		},
+		{
+			key: 'profit',
+			label: 'P&L',
+			class: 'hidden md:table-cell md:w-[10%] font-mono',
+			sortable: true,
+			render: (value: any) => ({
+				component: 'text',
+				text: value === null ? '-' : `${value >= 0 ? '+' : ''}${formatValue(value)}`,
+				class: value === null ? 'text-muted-foreground' : value >= 0 ? 'text-success' : 'text-red-500'
 			})
 		},
 		{
@@ -238,7 +272,7 @@
 		{
 			key: 'timestamp',
 			label: $_('global.date'),
-			class: 'hidden md:table-cell md:w-[18%] text-muted-foreground text-sm',
+			class: 'md:w-[18%] text-muted-foreground text-sm',
 			render: (value: any) => formatDate(value)
 		},
 		{
@@ -271,7 +305,9 @@
 <SendMoneyModal bind:open={sendMoneyModalOpen} onSuccess={handleTransferSuccess} />
 <SignInConfirmDialog bind:open={shouldSignIn} />
 
-<div class="container mx-auto max-w-7xl p-6">
+<PullToRefresh onRefresh={() => Promise.all([loadPortfolioData(), fetchRecentTransactions()])} />
+
+<div class="container mx-auto max-w-7xl py-6 sm:px-6">
 	<div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
 		<div>
 			<h1 class="text-3xl font-bold">{$_('portfolio.title')}</h1>
@@ -311,9 +347,9 @@
 		<!-- Portfolio Overview -->
 		<div class="mb-8">
 			<!-- Portfolio Summary Cards -->
-			<div class="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+			<div class="mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
 				<!-- Total Portfolio Value -->
-				<Card.Root class="text-success gap-1">
+				<Card.Root class="text-success col-span-2 gap-1 lg:col-span-1">
 					<Card.Header>
 						<Card.Title class="flex items-center gap-2 text-sm font-medium">
 							<HugeiconsIcon icon={Wallet01Icon} class="h-4 w-4" />
@@ -326,15 +362,15 @@
 				</Card.Root>
 
 				<!-- Base Currency Balance -->
-				<Card.Root class="gap-1">
-					<Card.Header>
+				<Card.Root class="gap-1 py-4 sm:py-6">
+					<Card.Header class="px-4 sm:px-6">
 						<Card.Title class="flex items-center gap-2 text-sm font-medium">
 							<HugeiconsIcon icon={DollarCircleIcon} class="h-4 w-4" />
 							{$_('portfolio.cash_balance.0')}
 						</Card.Title>
 					</Card.Header>
-					<Card.Content>
-						<p class="text-3xl font-bold">
+					<Card.Content class="px-4 sm:px-6">
+						<p class="text-2xl font-bold sm:text-3xl">
 							{formatValue(portfolioData?.baseCurrencyBalance || 0)}
 						</p>
 						<p class="text-muted-foreground text-xs">
@@ -352,15 +388,15 @@
 				</Card.Root>
 
 				<!-- Coin Holdings Value -->
-				<Card.Root class="gap-1">
-					<Card.Header>
+				<Card.Root class="gap-1 py-4 sm:py-6">
+					<Card.Header class="px-4 sm:px-6">
 						<Card.Title class="flex items-center gap-2 text-sm font-medium">
 							<HugeiconsIcon icon={TradeUpIcon} class="h-4 w-4" />
 							{$_('portfolio.coin_holdings.0')}
 						</Card.Title>
 					</Card.Header>
-					<Card.Content>
-						<p class="text-3xl font-bold">{formatValue(portfolioData?.totalCoinValue || 0)}</p>
+					<Card.Content class="px-4 sm:px-6">
+						<p class="text-2xl font-bold sm:text-3xl">{formatValue(portfolioData?.totalCoinValue || 0)}</p>
 						<p class="text-muted-foreground text-xs">
 							{$_('portfolio.coin_holdings.1').replace(
 								'{{quantity}}',
@@ -401,7 +437,8 @@
 					<Card.Content>
 						<DataTable
 							columns={holdingsColumns}
-							data={portfolioData?.coinHoldings || []}
+							mobileColumnOrder={['coin', 'value', 'percentageChange', 'change24h']}
+							data={holdingsRows}
 							onRowClick={(holding) => goto(`/coin/${holding.symbol}`)}
 						/>
 					</Card.Content>
@@ -431,6 +468,7 @@
 				<Card.Content>
 					<DataTable
 						columns={transactionsColumns}
+						mobileColumnOrder={['type', 'coin', 'totalBaseCurrencyAmount']}
 						data={transactions}
 						onRowClick={(tx) => !tx.isTransfer && goto(`/coin/${tx.coin.symbol}`)}
 						emptyIcon={Invoice03Icon}

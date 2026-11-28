@@ -8,16 +8,17 @@ export interface PortfolioSummary {
 }
 
 export interface PortfolioData extends PortfolioSummary {
-	coinHoldings: Array<{
-		symbol: string;
-		quantity: number;
-		currentPrice: number;
-		value: number;
-		percentageChange: number;
-		change24h: number;
-		icon?: string;
-		portfolioPercent: number;
-	}>;
+    coinHoldings: Array<{
+        symbol: string;
+        quantity: number;
+        currentPrice: number;
+        value: number;
+        percentageChange: number;
+        costBasis?: number;
+        change24h: number;
+        icon?: string;
+        portfolioPercent: number;
+    }>;
 }
 
 export const PORTFOLIO_SUMMARY = writable<PortfolioSummary | null>(null);

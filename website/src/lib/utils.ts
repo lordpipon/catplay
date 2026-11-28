@@ -28,6 +28,11 @@ export function getTimeBasedGreeting(): string {
 	}
 }
 
+export function isApplePlatform(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
+}
+
 export function getPublicUrl(key: string | null): string | null {
 	if (!key) return null;
 	return `/api/proxy/s3/${key}`;
@@ -65,28 +70,41 @@ export function formatPrice(price: number): string {
 	}
 }
 
+export function formatChange(value: number): string {
+    const sign = value >= 0 ? '+' : '-';
+    const abs = Math.abs(value);
+    if (abs < 1000) return `${sign}${abs.toFixed(2)}%`;
+    const compact = new Intl.NumberFormat('en-US', {
+        notation: 'compact',
+        maximumFractionDigits: 1
+    }).format(abs);
+    return `${sign}${compact}%`;
+}
+
 export function formatValue(value: number | string): string {
-	const numValue = typeof value === 'string' ? parseFloat(value) : value;
-	if (typeof numValue !== 'number' || isNaN(numValue)) return '$0.00';
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (typeof numValue !== 'number' || isNaN(numValue)) return '$0.00';
 
-	if (numValue >= 1e21) return `$${(numValue / 1e21).toFixed(2)}Sx`;
-	if (numValue >= 1e18) return `$${(numValue / 1e18).toFixed(2)}Qi`;
-	if (numValue >= 1e15) return `$${(numValue / 1e15).toFixed(2)}Qa`;
-	if (numValue >= 1e12) return `$${(numValue / 1e12).toFixed(2)}T`;
-	if (numValue >= 1e9) return `$${(numValue / 1e9).toFixed(2)}B`;
-	if (numValue >= 1e6) return `$${(numValue / 1e6).toFixed(2)}M`;
-	if (numValue >= 1e3) return `$${(numValue / 1e3).toFixed(2)}K`;
+    if (numValue < 0) return `-${formatValue(-numValue)}`;
 
-	if (numValue < 0.01) {
-		const str = numValue.toString();
-		const match = str.match(/^0\.0*(\d{2})/);
-		if (match) {
-			const zerosAfterDecimal = str.indexOf(match[1]) - 2;
-			return `$${numValue.toFixed(zerosAfterDecimal + 2)}`;
-		}
-	}
+    if (numValue >= 1e21) return `$${(numValue / 1e21).toFixed(2)}Sx`;
+    if (numValue >= 1e18) return `$${(numValue / 1e18).toFixed(2)}Qi`;
+    if (numValue >= 1e15) return `$${(numValue / 1e15).toFixed(2)}Qa`;
+    if (numValue >= 1e12) return `$${(numValue / 1e12).toFixed(2)}T`;
+    if (numValue >= 1e9) return `$${(numValue / 1e9).toFixed(2)}B`;
+    if (numValue >= 1e6) return `$${(numValue / 1e6).toFixed(2)}M`;
+    if (numValue >= 1e3) return `$${(numValue / 1e3).toFixed(2)}K`;
 
-	return `$${numValue.toFixed(2)}`;
+    if (numValue < 0.01) {
+        const str = numValue.toString();
+        const match = str.match(/^0\.0*(\d{2})/);
+        if (match) {
+            const zerosAfterDecimal = str.indexOf(match[1]) - 2;
+            return `$${numValue.toFixed(zerosAfterDecimal + 2)}`;
+        }
+    }
+
+    return `$${numValue.toFixed(2)}`;
 }
 
 export function formatQuantity(value: number): string {
@@ -165,17 +183,19 @@ export function formatRelativeTime(timestamp: string | Date): string {
 }
 
 export function formatTimeAgo(date: string) {
-	const now = new Date();
-	const commentDate = new Date(date);
-	const diffMs = now.getTime() - commentDate.getTime();
-	const diffMins = Math.floor(diffMs / (1000 * 60));
-	const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const now = new Date();
+    const commentDate = new Date(date);
+    const diffMs = now.getTime() - commentDate.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-	if (diffMins < 1) return 'Just now';
-	if (diffMins < 60) return `${diffMins}m ago`;
-	if (diffHours < 24) return `${diffHours}h ago`;
-	return `${diffDays}d ago`;
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 30) return `${diffDays}d ago`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+    return `${Math.floor(diffDays / 365)}y ago`;
 }
 
 export function formatTimeRemaining(timeMs: number): string {

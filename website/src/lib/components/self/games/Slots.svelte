@@ -319,8 +319,12 @@
 					<Input
 						id="bet-amount"
 						type="text"
+						inputmode="decimal"
 						value={betAmountDisplay}
 						oninput={handleBetAmountInput}
+						onkeydown={(event: KeyboardEvent) => {
+							if (event.key === 'Enter') spin();
+						}}
 						onblur={handleBetAmountBlur}
 						disabled={isSpinning}
 						placeholder="Enter bet amount"

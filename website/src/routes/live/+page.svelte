@@ -48,7 +48,7 @@
 	<meta name="description" content="Real-time cryptocurrency trading activity on Catplay" />
 </svelte:head>
 
-<div class="container mx-auto max-w-7xl p-6">
+<div class="container mx-auto max-w-7xl py-6 sm:px-6">
 	<header class="mb-8">
 		<div>
 			<h1 class="text-2xl font-bold sm:text-3xl">Live Trades</h1>
@@ -88,11 +88,11 @@
 						</p>
 					</div>
 				{:else}
-					{#each $allTradesStore as trade ('LIVETRADES' + trade.timestamp + trade.coinSymbol)}
+					{#each $allTradesStore as trade, index (`${trade.timestamp}-${trade.username}-${trade.coinSymbol}-${trade.type}-${index}`)}
 						<div
-							class="hover:bg-muted/50 flex flex-col gap-3 rounded-lg border p-3 transition-colors sm:flex-row sm:items-center sm:justify-between sm:p-4"
+							class="hover:bg-muted/50 pointer-coarse:active:bg-muted/60 flex flex-col gap-3 rounded-lg border p-3 transition-colors sm:flex-row sm:items-center sm:justify-between sm:p-4"
 						>
-							<div class="flex items-center gap-3 sm:gap-4">
+							<div class="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
 								<div class="min-w-0 flex-1">
 									<div class="flex flex-wrap items-center gap-1 sm:gap-2">
 								{#if trade.type === 'TRANSFER_IN' || trade.type === 'TRANSFER_OUT'}
@@ -170,7 +170,7 @@
 															>{trade.username.charAt(0).toUpperCase()}</Avatar.Fallback
 														>
 													</Avatar.Root>
-													<span class="max-w-[120px] truncate text-xs sm:max-w-none sm:text-sm"
+													<span class="max-w-[120px] truncate text-xs sm:max-w-[200px] sm:text-sm"
 														>@{trade.username}</span
 													>
 												</div>
@@ -183,7 +183,7 @@
 								</div>
 							</div>
 
-							<div class="flex items-center justify-between gap-2">
+							<div class="flex items-center justify-between gap-2 sm:shrink-0">
 								<div class="flex items-center gap-2 font-mono text-xs sm:text-sm">
 									{#if trade.type === 'TRANSFER_IN' || trade.type === 'TRANSFER_OUT'}
 										<HugeiconsIcon

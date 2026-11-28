@@ -1175,3 +1175,11 @@ export const seasonTrophy = pgTable(
 		seasonIdIdx: index('season_trophy_season_id_idx').on(table.seasonId)
 	})
 );
+
+export const userWatchlist = pgTable("user_watchlist", {
+	userId: integer("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+	coinId: integer("coin_id").notNull().references(() => coin.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	pk: primaryKey({ columns: [table.userId, table.coinId] }),
+}));

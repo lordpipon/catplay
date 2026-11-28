@@ -9,7 +9,7 @@
 	import ProfileSkeleton from '$lib/components/self/skeletons/ProfileSkeleton.svelte';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { getPublicUrl, formatPrice, formatValue, formatQuantity, formatDate } from '$lib/utils';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import {
@@ -26,15 +26,24 @@
 		ClockIcon,
 		UserGroupIcon,
 		Globe02Icon,
-		Locker01Icon
+		Locker01Icon,
+		SentIcon,
+		UserAdd01Icon,
+		UserCheck01Icon,
+		UserRemove01Icon,
+		Link01Icon,
+		Tick01Icon,
+		Briefcase01Icon
 	} from '@hugeicons/core-free-icons';
+	import SendMoneyModal from '$lib/components/self/SendMoneyModal.svelte';
+
+	import { fetchPortfolioData, fetchPortfolioSummary } from '$lib/stores/portfolio-data';
 	import { goto } from '$app/navigation';
 	import { USER_DATA } from '$lib/stores/user-data';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { haptic } from '$lib/stores/haptics';
 	import { formatTimezone, getTimezoneDate } from '$lib/utils/timezones.js';
-	import { Message01Icon, UserAdd01Icon, UserCheck01Icon, UserRemove01Icon } from '@hugeicons/core-free-icons';
 
 	let { data } = $props();
 	let username = $derived(data.username);
@@ -63,16 +72,49 @@
 
 	let isBlocked = $state(false);
 	let blockLoading = $state(false);
+	let sendMoneyOpen = $state(false);
 
-	async function checkBlockStatus() {
-		if (!$USER_DATA || isOwnProfile) return;
-		try {
-			const res = await fetch('/api/settings/blocked');
-			if (res.ok) {
+	$effect(() => {
+		if (!$USER_DATA || isOwnProfile || !profileData?.profile) {
+			isBlocked = false;
+			return;
+		}
+		const target = username;
+		fetch(`/api/user/${encodeURIComponent(target)}/relationship`)
+			.then(async (res) => {
+				if (!res.ok || target !== username) return;
 				const d = await res.json();
-				isBlocked = d.blocks?.some((b: any) => b.username === username) ?? false;
-			}
-		} catch {}
+				isBlocked = !!d.isBlocked;
+				const current = untrack(() => followData);
+				if (current) {
+					followData = {
+						...current,
+						isFollowing: !!d.isFollowing,
+						followersCount: Number(d.followers ?? current.followersCount ?? 0),
+						followingCount: Number(d.following ?? current.followingCount ?? 0)
+					};
+				}
+			})
+			.catch(() => {});
+	});
+
+	async function openSendMoney() {
+		// The dialog reads balances from the portfolio store, which is only filled
+		// on the Portfolio page otherwise.
+		void fetchPortfolioData();
+		sendMoneyOpen = true;
+	}
+
+	async function copyProfileLink() {
+		try {
+			await navigator.clipboard.writeText(`${window.location.origin}/user/${username}`);
+			linkCopied = true;
+			haptic.trigger('light');
+			toast.success('Profile link copied');
+			setTimeout(() => (linkCopied = false), 2000);
+		} catch {
+			toast.error('Could not copy the link');
+		}
 	}
 
 	async function toggleBlock() {
@@ -194,6 +236,9 @@
 
 	let followData = $state(profileData?.follow ?? null);
 	let followLoading = $state(false);
+	let isFollowing = $derived(followData?.isFollowing ?? false);
+	let followerCount = $derived(followData?.followersCount ?? 0);
+	let followingCount = $derived(followData?.followingCount ?? 0);
 	let followDialogRelation = $state<'followers' | 'following' | null>(null);
 	let followDialogUsers = $state<any[]>([]);
 	let followDialogLoading = $state(false);
@@ -274,7 +319,7 @@
 		previousUsername = username;
 		fetchAchievements();
 		fetchUserGroups();
-		checkBlockStatus();
+		loadRelationship();
 		checkFriendStatus();
 		if (isOwnProfile) await fetchTransactions();
 	});
@@ -285,7 +330,7 @@
 			userGroups = [];
 			fetchAchievements();
 			fetchUserGroups();
-			checkBlockStatus();
+			loadRelationship();
 			checkFriendStatus();
 			previousUsername = username;
 		}
@@ -345,6 +390,66 @@
 				})
 			: ''
 	);
+	let holdings = $derived<any[]>(profileData?.holdings ?? []);
+	let holdingsColumns = $derived([
+		{
+			key: 'coin',
+			label: 'Coin',
+			class: 'pl-6 font-medium',
+			render: (value: any, row: any) => ({
+				component: 'coin',
+				icon: row.icon,
+				symbol: row.symbol,
+				name: `*${row.symbol}`
+			})
+		},
+		{
+			key: 'quantity',
+			label: 'Quantity',
+			class: 'font-mono',
+			sortable: true,
+			render: (value: any) => formatQuantity(value)
+		},
+		{
+			key: 'currentPrice',
+			label: 'Price',
+			class: 'hidden font-mono sm:table-cell',
+			render: (value: any) => `$${formatPrice(value)}`
+		},
+		{
+			key: 'change24h',
+			label: '24h Change',
+			class: 'hidden md:table-cell',
+			sortable: true,
+			render: (value: any) => ({
+				component: 'badge',
+				variant: value >= 0 ? 'success' : 'destructive',
+				text: `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+			})
+		},
+		{
+			key: 'value',
+			label: 'Value',
+			class: 'font-mono font-medium',
+			sortable: true,
+			defaultSort: true,
+			render: (value: any) => formatValue(value)
+		},
+		{
+			key: 'share',
+			label: 'Portfolio %',
+			class: 'hidden lg:table-cell',
+			render: (value: any, row: any) => ({
+				component: 'badge',
+				variant: 'outline',
+				text:
+					profileData?.stats?.totalPortfolioValue > 0
+						? `${((row.value / profileData.stats.totalPortfolioValue) * 100).toFixed(1)}%`
+						: '-'
+			})
+		}
+	]);
+
 	let hasCreatedCoins = $derived(
 		profileData?.createdCoins?.length ? profileData.createdCoins.length > 0 : false
 	);
@@ -608,7 +713,15 @@
 	twitterCard="summary"
 />
 
-<div class="container mx-auto max-w-6xl p-6">
+{#if $USER_DATA && !isOwnProfile}
+	<SendMoneyModal
+		bind:open={sendMoneyOpen}
+		prefilledUsername={username}
+		onSuccess={() => void fetchPortfolioSummary()}
+	/>
+{/if}
+
+<div class="container mx-auto max-w-6xl py-6 sm:px-6">
 	{#if loading}
 		<ProfileSkeleton />
 	{:else if !profileData}
@@ -620,7 +733,7 @@
 		</div>
 	{:else}
 		<Card.Root class="mb-6 py-0">
-			<Card.Content class="p-6">
+			<Card.Content class="p-4 sm:p-6">
 				<div class="flex flex-col gap-4 sm:flex-row sm:items-start">
 					<div class="flex-shrink-0">
 						<Avatar.Root class="size-20 sm:size-24">
@@ -636,19 +749,20 @@
 					<div class="min-w-0 flex-1">
 						<div class="mb-3">
 							<div class="mb-1 flex flex-wrap items-center gap-2">
-								<h1 class="text-2xl font-bold sm:text-3xl">
+								<h1 class="min-w-0 break-words text-2xl font-bold sm:text-3xl">
 									<UserName
 										name={profileData.profile.name}
 										nameColor={profileData.profile.nameColor}
 										username={profileData.profile.username}
+										truncate={false}
 									/>
 								</h1>
 								<ProfileBadges user={profileData.profile} />
 							</div>
-							<p class="text-muted-foreground text-lg">@{profileData.profile.username}</p>
+							<p class="text-muted-foreground truncate text-lg">@{profileData.profile.username}</p>
 						</div>
 						{#if profileData.profile.bio}
-							<p class="text-muted-foreground mb-3 max-w-2xl leading-relaxed">
+							<p class="text-muted-foreground mb-3 max-w-2xl break-words leading-relaxed">
 								{profileData.profile.bio}
 							</p>
 						{/if}
@@ -664,9 +778,9 @@
 								(UTC{formatTimezone(profileData?.profile?.timezone ?? 0)})</span
 							>
 						</div>
-						<div class="text-muted-foreground flex items-center gap-2 text-sm">
-							<HugeiconsIcon icon={Calendar01Icon} class="h-4 w-4" />
-							<span>Joined {memberSince}</span>
+						<div class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+							<HugeiconsIcon icon={Calendar01Icon} class="h-4 w-4 shrink-0" />
+							<span class="whitespace-nowrap">Joined {memberSince}</span>
 						</div>
 						{#if followData}
 							<div class="mt-3 flex items-center gap-4 text-sm">
@@ -689,35 +803,18 @@
 							</div>
 						{/if}
 					</div>
-					{#if $USER_DATA && !isOwnProfile}
-						<div class="flex flex-wrap items-center justify-end gap-2 self-end">
-							<Tooltip.Provider>
-								<Tooltip.Root>
-									<Tooltip.Trigger>
-										<Button
-											variant={isBlocked ? 'outline' : 'ghost'}
-											size="icon"
-											onclick={toggleBlock}
-											disabled={blockLoading}
-											class="h-8 w-8 {isBlocked
-												? 'text-destructive'
-												: 'text-muted-foreground hover:text-destructive'}"
-										>
-											<HugeiconsIcon icon={UnavailableIcon} class="h-4 w-4" />
-										</Button>
-									</Tooltip.Trigger>
-									<Tooltip.Content>{isBlocked ? 'Unblock' : 'Block'}</Tooltip.Content>
-								</Tooltip.Root>
-							</Tooltip.Provider>
+					<div class="flex flex-wrap items-center gap-2 self-start sm:ml-auto">
+						{#if $USER_DATA && !isOwnProfile}
 							<Button
-								size="xs"
 								variant={followData?.isFollowing ? 'outline' : 'default'}
+								size="sm"
+								class="h-8"
 								onclick={toggleFollow}
 								disabled={followLoading || !followData}
 							>
 								<HugeiconsIcon
 									icon={followData?.isFollowing ? UserCheck01Icon : UserAdd01Icon}
-									class="h-3.5 w-3.5"
+									class="h-4 w-4"
 								/>
 								{followData?.isFollowing ? 'Following' : (followLoading ? '…' : 'Follow')}
 							</Button>
@@ -818,47 +915,55 @@
 									Add Friend
 								</Button>
 							{/if}
-						</div>
-					{/if}
+						{/if}
+					</div>
 				</div>
 			</Card.Content>
 		</Card.Root>
 
-		<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-muted-foreground text-sm font-medium">Total Portfolio</div>
-						<HugeiconsIcon icon={Wallet01Icon} class="text-muted-foreground h-4 w-4" />
+						<HugeiconsIcon icon={Wallet01Icon} class="text-muted-foreground h-4 w-4 shrink-0" />
 					</div>
-					<div class="mt-1 text-2xl font-bold">{formatValue(totalPortfolioValue)}</div>
+					<div class="mt-1 text-xl font-bold sm:text-2xl">{formatValue(totalPortfolioValue)}</div>
 					<p class="text-muted-foreground text-xs">{profileData.stats.holdingsCount} holdings</p>
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="text-muted-foreground text-sm font-medium">Liquid Value</div>
-					<div class="text-success mt-1 text-2xl font-bold">{formatValue(baseCurrencyBalance)}</div>
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
+						<div class="text-muted-foreground text-sm font-medium">Liquid Value</div>
+					</div>
+					<div class="text-success mt-1 text-xl font-bold sm:text-2xl">
+						{formatValue(baseCurrencyBalance)}
+					</div>
 					<p class="text-muted-foreground text-xs">Available cash</p>
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="text-muted-foreground text-sm font-medium">Illiquid Value</div>
-					<div class="text-success mt-1 text-2xl font-bold">{formatValue(holdingsValue)}</div>
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
+						<div class="text-muted-foreground text-sm font-medium">Illiquid Value</div>
+					</div>
+					<div class="text-success mt-1 text-xl font-bold sm:text-2xl">
+						{formatValue(holdingsValue)}
+					</div>
 					<p class="text-muted-foreground text-xs">Coin holdings</p>
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-muted-foreground text-sm font-medium">Buy/Sell Ratio</div>
 						<div class="flex gap-1">
 							<div class="bg-success h-2 w-2 rounded-full"></div>
 							<div class="h-2 w-2 rounded-full bg-red-500"></div>
 						</div>
 					</div>
-					<div class="mt-1 flex items-center gap-2">
+					<div class="mt-1 flex flex-wrap items-baseline gap-x-2">
 						<span class="text-success text-xl font-bold">{buyPercentage.toFixed(1)}%</span>
 						<span class="text-muted-foreground text-xs">buy</span>
 						<span class="text-xl font-bold text-red-600">{sellPercentage.toFixed(1)}%</span>
@@ -868,15 +973,15 @@
 			</Card.Root>
 		</div>
 
-		<div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-4">
+		<div class="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-foreground text-sm font-medium">Buy Activity</div>
 						<HugeiconsIcon icon={TradeUpIcon} class="text-success h-4 w-4" />
 					</div>
 					<div class="mt-1">
-						<div class="text-success text-2xl font-bold">{formatValue(totalBuyVolume)}</div>
+						<div class="text-success text-xl font-bold sm:text-2xl">{formatValue(totalBuyVolume)}</div>
 						<div class="text-muted-foreground text-xs">Total amount spent</div>
 					</div>
 					<div class="border-muted mt-3 border-t pt-3">
@@ -886,13 +991,13 @@
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-foreground text-sm font-medium">Sell Activity</div>
 						<HugeiconsIcon icon={TradeDownIcon} class="h-4 w-4 text-red-600" />
 					</div>
 					<div class="mt-1">
-						<div class="text-2xl font-bold text-red-600">{formatValue(totalSellVolume)}</div>
+						<div class="text-xl font-bold text-red-600 sm:text-2xl">{formatValue(totalSellVolume)}</div>
 						<div class="text-muted-foreground text-xs">Total amount received</div>
 					</div>
 					<div class="border-muted mt-3 border-t pt-3">
@@ -902,24 +1007,24 @@
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-muted-foreground text-sm font-medium">Total Trading Volume</div>
-						<Badge variant="outline" class="text-xs">All Time</Badge>
+						<Badge variant="outline" class="hidden shrink-0 text-xs sm:inline-flex">All Time</Badge>
 					</div>
-					<div class="mt-1 text-2xl font-bold">{formatValue(totalTradingVolumeAllTime)}</div>
+					<div class="mt-1 text-xl font-bold sm:text-2xl">{formatValue(totalTradingVolumeAllTime)}</div>
 					<div class="text-muted-foreground text-xs">
 						{profileData.stats.totalTransactions} total trades
 					</div>
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-muted-foreground text-sm font-medium">24h Trading Volume</div>
-						<Badge variant="outline" class="text-xs">24h</Badge>
+						<Badge variant="outline" class="hidden shrink-0 text-xs sm:inline-flex">24h</Badge>
 					</div>
-					<div class="mt-1 text-2xl font-bold">{formatValue(totalTradingVolume24h)}</div>
+					<div class="mt-1 text-xl font-bold sm:text-2xl">{formatValue(totalTradingVolume24h)}</div>
 					<div class="text-muted-foreground text-xs">
 						{profileData.stats.transactions24h || 0} trades today
 					</div>
@@ -927,48 +1032,48 @@
 			</Card.Root>
 		</div>
 
-		<div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-4">
+		<div class="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-foreground text-sm font-medium">Total Wins</div>
 						<HugeiconsIcon icon={TradeUpIcon} class="text-success h-4 w-4" />
 					</div>
-					<div class="text-success mt-1 text-2xl font-bold">{formatValue(arcadeWins)}</div>
+					<div class="text-success mt-1 text-xl font-bold sm:text-2xl">{formatValue(arcadeWins)}</div>
 					<div class="text-muted-foreground text-xs">Total arcade winnings</div>
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-foreground text-sm font-medium">Total Losses</div>
 						<HugeiconsIcon icon={TradeDownIcon} class="h-4 w-4 text-red-600" />
 					</div>
-					<div class="mt-1 text-2xl font-bold text-red-600">{formatValue(arcadeLosses)}</div>
+					<div class="mt-1 text-xl font-bold text-red-600 sm:text-2xl">{formatValue(arcadeLosses)}</div>
 					<div class="text-muted-foreground text-xs">Total arcade losses</div>
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="flex items-center justify-between">
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
 						<div class="text-muted-foreground text-sm font-medium">Win Rate</div>
 						<HugeiconsIcon icon={PercentIcon} class="text-muted-foreground h-4 w-4" />
 					</div>
-					<div class="mt-1 text-2xl font-bold">{winRate}%</div>
+					<div class="mt-1 text-xl font-bold sm:text-2xl">{winRate}%</div>
 					<div class="text-muted-foreground text-xs">Percentage of wins</div>
 				</Card.Content>
 			</Card.Root>
 			<Card.Root class="py-0">
-				<Card.Content class="p-4">
-					<div class="text-muted-foreground text-sm font-medium">Net Profit</div>
-					<div
-						class="mt-1 text-2xl font-bold"
-						class:text-success={netProfit >= 0}
-						class:text-red-600={netProfit < 0}
-					>
-						{#if netProfit >= 0}{formatValue(netProfit)}{:else}-{formatValue(
-								Math.abs(netProfit)
-							)}{/if}
+				<Card.Content class="p-3 sm:p-4">
+					<div class="flex items-start justify-between gap-2">
+						<div class="text-muted-foreground text-sm font-medium">Net Profit</div>
+					</div>
+					<div class="mt-1 text-xl font-bold sm:text-2xl" class:text-success={netProfit >= 0} class:text-red-600={netProfit < 0}>
+						{#if netProfit >= 0}
+							{formatValue(netProfit)}
+						{:else}
+							-{formatValue(Math.abs(netProfit))}
+						{/if}
 					</div>
 					<div class="text-muted-foreground text-xs">
 						{netProfit >= 0 ? 'Overall profit' : 'Overall loss'}
@@ -1073,6 +1178,30 @@
 			</Card.Root>
 		{/if}
 
+		{#if holdings.length > 0}
+			<Card.Root class="mb-6">
+				<Card.Header class="pb-3">
+					<Card.Title class="flex items-center gap-2">
+						<HugeiconsIcon icon={Briefcase01Icon} class="h-5 w-5" />
+						Holdings ({profileData.stats.holdingsCount})
+					</Card.Title>
+					<Card.Description>
+						{profileData.stats.holdingsCount > holdings.length
+							? `The ${holdings.length} largest positions held by ${profileData.profile.name}`
+							: `Coins held by ${profileData.profile.name}`}
+					</Card.Description>
+				</Card.Header>
+				<Card.Content class="p-0">
+					<DataTable
+						columns={holdingsColumns}
+						mobileColumnOrder={['coin', 'value', 'change24h']}
+						data={holdings}
+						onRowClick={(holding) => goto(`/coin/${holding.symbol}`)}
+					/>
+				</Card.Content>
+			</Card.Root>
+		{/if}
+
 		{#if hasCreatedCoins}
 			<Card.Root class="mb-6">
 				<Card.Header class="pb-3">
@@ -1085,6 +1214,7 @@
 				<Card.Content class="p-0">
 					<DataTable
 						columns={createdCoinsColumns}
+						mobileColumnOrder={['coin', 'currentPrice', 'change24h']}
 						data={profileData.createdCoins}
 						onRowClick={(coin) => goto(`/coin/${coin.symbol}`)}
 					/>
@@ -1103,6 +1233,7 @@
 			<Card.Content class="p-0">
 				<DataTable
 					columns={transactionsColumns}
+					mobileColumnOrder={['type', 'coin', 'totalBaseCurrencyAmount']}
 					data={recentTransactions}
 					emptyIcon={Invoice03Icon}
 					emptyTitle="No recent activity"

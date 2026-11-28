@@ -297,8 +297,12 @@
 					<Input
 						id="bet-amount"
 						type="text"
+						inputmode="decimal"
 						value={betAmountDisplay}
 						oninput={handleBetAmountInput}
+						onkeydown={(event: KeyboardEvent) => {
+							if (event.key === 'Enter') rollDice();
+						}}
 						onblur={handleBetAmountBlur}
 						disabled={isRolling}
 						placeholder="Enter bet amount"

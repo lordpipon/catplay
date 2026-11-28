@@ -15,10 +15,12 @@
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
-	import { formatTimeAgo, getPublicUrl } from '$lib/utils';
+	import { formatTimeAgo, getPublicUrl, isApplePlatform } from '$lib/utils';
+	import { onMount } from 'svelte';
 	import SignInConfirmDialog from '$lib/components/self/SignInConfirmDialog.svelte';
 	import UserProfilePreview from '$lib/components/self/UserProfilePreview.svelte';
 	import UserName from '$lib/components/self/UserName.svelte';
+	import Kbd from '$lib/components/self/Kbd.svelte';
 	import { websocketController } from '$lib/stores/websocket';
 	import { haptic } from '$lib/stores/haptics';
 
@@ -30,6 +32,11 @@
 	let isLoading = $state(true);
 	let shouldSignIn = $state(false);
 	let expandedComments = $state(new Set<number>());
+	let submitModifier = $state<'⌘' | 'Ctrl'>('Ctrl');
+
+	onMount(() => {
+		if (isApplePlatform()) submitModifier = '⌘';
+	});
 
 	const MAX_COMMENTS = 50;
 	const MAX_LINES_PREVIEW = 3;
@@ -142,12 +149,25 @@
 			likesCount: wasLiked ? comment.likesCount - 1 : comment.likesCount + 1
 		};
 
+		const rollback = () => {
+			const index = comments.findIndex((c) => c.id === commentId);
+			if (index !== -1) {
+				comments[index] = {
+					...comments[index],
+					isLikedByUser: wasLiked,
+					likesCount: comment.likesCount
+				};
+			}
+		};
+
 		fetch(`/api/coin/${coinSymbol}/comments/${commentId}/like`, {
 			method: wasLiked ? 'DELETE' : 'POST',
 			headers: { 'Content-Type': 'application/json' }
-		}).catch(() => {
-			comments[commentIndex] = comment;
-		});
+		})
+			.then((response) => {
+				if (!response.ok) rollback();
+			})
+			.catch(rollback);
 	}
 
 	function handleLikeClick(commentId: number) {
@@ -226,11 +246,9 @@
 						maxlength={500}
 						onkeydown={handleKeydown}
 					/>
-					<kbd
-						class="bg-muted pointer-events-none absolute right-2 bottom-2 hidden h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-70 select-none sm:flex"
-					>
-						<span class="text-xs">⌘</span>Enter
-					</kbd>
+					<Kbd class="bg-muted pointer-events-none absolute bottom-2 right-2 hidden opacity-70 sm:inline-flex">
+						{submitModifier === '⌘' ? '⌘' : 'Ctrl'} Enter
+					</Kbd>
 				</div>
 				<div class="flex justify-between">
 					<span class="text-muted-foreground text-xs">
@@ -275,13 +293,13 @@
 
 					<div class="border-border border-b pb-4 last:border-b-0">
 						<div class="flex items-start gap-3">
-							<button onclick={() => goto(`/user/${comment.userUsername}`)} class="cursor-pointer">
+							<button onclick={() => goto(`/user/${comment.userUsername}`)} class="shrink-0 cursor-pointer">
 								<Avatar.Root class="h-8 w-8">
 									<Avatar.Image src={getPublicUrl(comment.userImage)} alt={comment.userName} />
 									<Avatar.Fallback>{comment.userName?.charAt(0) || '?'}</Avatar.Fallback>
 								</Avatar.Root>
 							</button>
-							<div class="flex-1 space-y-1">
+							<div class="min-w-0 flex-1 space-y-1">
 								<div class="flex items-center gap-2">
 									<HoverCard.Root>
 										<HoverCard.Trigger
@@ -339,7 +357,7 @@
 									{/if}
 								</div>
 							</div>
-							<div class="flex items-center">
+							<div class="flex shrink-0 items-center">
 								<Button
 									variant="ghost"
 									size="sm"

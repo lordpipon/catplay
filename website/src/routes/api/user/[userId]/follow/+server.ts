@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { auth } from '$lib/auth';
+import { MAX_FOLLOWING } from '$lib/data/constants';
 import { db } from '$lib/server/db';
 import { user, userFollow } from '$lib/server/db/schema';
 import { getFollowPage, getFollowSummary } from '$lib/server/follows';
@@ -64,13 +65,21 @@ export const POST: RequestHandler = async ({ request, params }) => {
 	if (!targetUser) throw error(404, 'User not found');
 	if (targetUser.id === sessionUserId) throw error(400, 'Cannot follow yourself');
 
+	const [{ total }] = await db
+		.select({ total: count() })
+		.from(userFollow)
+		.where(eq(userFollow.followerId, sessionUserId));
+	if (Number(total) >= MAX_FOLLOWING) {
+		throw error(400, `You can follow at most ${MAX_FOLLOWING} players`);
+	}
+
 	await db
 		.insert(userFollow)
 		.values({ followerId: sessionUserId, followingId: targetUser.id })
 		.onConflictDoNothing();
 
 	const follow = await getFollowSummary(targetUser.id, sessionUserId);
-	return json({ success: true, follow });
+	return json({ success: true, isFollowing: follow.isFollowing, follow });
 };
 
 export const DELETE: RequestHandler = async ({ request, params }) => {
@@ -92,5 +101,5 @@ export const DELETE: RequestHandler = async ({ request, params }) => {
 		);
 
 	const follow = await getFollowSummary(targetUser.id, sessionUserId);
-	return json({ success: true, follow });
+	return json({ success: true, isFollowing: follow.isFollowing, follow });
 };

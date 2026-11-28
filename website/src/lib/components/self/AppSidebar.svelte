@@ -61,6 +61,7 @@
 	import { signOut } from '$lib/auth-client';
 	import { formatValue, getPublicUrl } from '$lib/utils';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { liveTradesStore, isLoadingTrades } from '$lib/stores/websocket';
 	import { onMount } from 'svelte';
 	import { UNREAD_COUNT, fetchNotifications } from '$lib/stores/notifications';
@@ -119,8 +120,25 @@
 		}
 	});
 
-	function handleNavClick(title: string) { setOpenMobile(false); }
-	function handleModeToggle() { setMode(mode.current === 'light' ? 'dark' : 'light'); }
+	function isNavActive(url: string, pathname: string): boolean {
+		if (url === '/') return pathname === '/';
+		if (url === '/coin/create') return pathname === url;
+		if (url === '/market') {
+			return (
+				pathname === url ||
+				(pathname.startsWith('/coin/') && pathname !== '/coin/create')
+			);
+		}
+		return pathname === url || pathname.startsWith(`${url}/`);
+	}
+
+	function handleNavClick(title: string) {
+		setOpenMobile(false);
+	}
+
+	function handleModeToggle() {
+		setMode(mode.current === 'light' ? 'dark' : 'light');
+	}
 	function formatCurrency(value: number): string {
 		return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 	}
@@ -176,11 +194,14 @@
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					{#each data.navMain as item}
+						{@const active = isNavActive(item.url, page.url.pathname)}
 						<Sidebar.MenuItem>
-							<Sidebar.MenuButton>
+							<Sidebar.MenuButton isActive={active}>
 								{#snippet child({ props }: { props: MenuButtonProps })}
 									<a
 										href={item.url || '/'}
+										aria-current={active ? 'page' : undefined}
+										data-active={active}
 										onclick={() => handleNavClick(item.title)}
 										class={`${props.class} h-7! ${(item.title === 'Notifications' || item.title === 'Messages') && !$USER_DATA ? 'pointer-events-none opacity-50' : ''}`}
 									>
@@ -310,10 +331,10 @@
 								<div class="flex justify-between"><Skeleton class="h-3 w-10" /><Skeleton class="h-3 w-12" /></div>
 							</div>
 						{:else}
-							<div class="flex items-center justify-between">
+							<div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
 								<div class="flex items-center gap-2">
 									<HugeiconsIcon icon={Wallet01Icon} class="text-muted-foreground h-4 w-4" />
-									<span class="text-sm font-medium">Total Value</span>
+									<span class="whitespace-nowrap text-sm font-medium">Total Value</span>
 								</div>
 								<Badge variant="secondary" class="font-mono">${formatCurrency($PORTFOLIO_SUMMARY.totalValue)}</Badge>
 							</div>

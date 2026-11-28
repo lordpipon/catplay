@@ -7,3 +7,35 @@ export const FIXED_SUPPLY = 1000000000; // 1 billion tokens
 export const STARTING_PRICE = 0.000001; // $0.000001 per token
 export const INITIAL_LIQUIDITY = FIXED_SUPPLY * STARTING_PRICE; // $1000
 export const TOTAL_COST = CREATION_FEE + INITIAL_LIQUIDITY; // $1100
+
+
+export function getCreationFee(_coinsCreated: number): number {
+	return CREATION_FEE;
+}
+
+export function getCreationTotalCost(coinsCreated: number): number {
+	return getCreationFee(coinsCreated) + INITIAL_LIQUIDITY;
+}
+
+// TRADING FEES
+// removes currency from circulation on every trade for a tiny whiny fee
+export const SWAP_FEE_RATE = 0.003; // 0.3%
+
+// TRANSFER FEES
+// Burned on cash transfers between users
+export const CASH_TRANSFER_FEE_RATE = 0.01; // 1%
+
+// WATCHLIST
+export const MAX_WATCHLIST_COINS = 50;
+
+// FOLLOWING
+export const MAX_FOLLOWING = 200;
+// The home page feed shows followed players' trades at least this large (the
+// same bar as the sidebar's live trades) from the last few days.
+export const FOLLOWING_FEED_MIN_VALUE = 1000;
+export const FOLLOWING_FEED_DAYS = 7;
+// Most recent followers / followed players listed on a profile.
+export const FOLLOW_LIST_LIMIT = 200;
+
+// PROMO CODES
+export const MAX_PROMO_REWARD = 1_000_000;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PullToRefresh from '$lib/components/self/PullToRefresh.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Pagination from '$lib/components/ui/pagination';
@@ -111,7 +112,15 @@
 		goto(url.toString(), { noScroll: true, replaceState: true });
 	}
 
+	let transactionsRequest: AbortController | null = null;
+
 	async function fetchTransactions() {
+		// Cancel the request in flight so an older, slower response cannot land on
+		// top of the results for the current search.
+		transactionsRequest?.abort();
+		const controller = new AbortController();
+		transactionsRequest = controller;
+
 		loading = true;
 		try {
 			const params = new URLSearchParams({
@@ -123,19 +132,21 @@
 				limit: perPage.toString()
 			});
 
-			const response = await fetch(`/api/transactions?${params}`);
+			const response = await fetch(`/api/transactions?${params}`, { signal: controller.signal });
 			if (response.ok) {
 				const result = await response.json();
+				if (controller.signal.aborted) return;
 				transactions = result.transactions;
 				totalCount = result.total;
 			} else {
 				toast.error('Failed to load transactions');
 			}
 		} catch (e) {
+			if (controller.signal.aborted) return;
 			console.error('Failed to fetch transactions:', e);
 			toast.error('Failed to load transactions');
 		} finally {
-			loading = false;
+			if (transactionsRequest === controller) loading = false;
 		}
 	}
 
@@ -233,7 +244,9 @@
 	keywords="trading history game, transaction records simulator, crypto trading log, virtual trading history"
 />
 
-<div class="container mx-auto max-w-7xl p-6">
+<PullToRefresh onRefresh={fetchTransactions} />
+
+<div class="container mx-auto max-w-7xl py-6 sm:px-6">
 	<header class="mb-8">
 		<div class="text-center">
 			<h1 class="mb-2 text-3xl font-bold">Transactions</h1>
@@ -250,7 +263,11 @@
 					<Input
 						bind:value={searchQuery}
 						placeholder="Search by coin name or symbol..."
-						class="pr-4 pl-10"
+						enterkeyhint="search"
+						autocapitalize="off"
+						autocorrect="off"
+						spellcheck="false"
+						class="pl-10 pr-4"
 						onblur={updateSearchUrl}
 						onkeydown={handleSearchKeydown}
 					/>
@@ -451,7 +468,7 @@
 										</Badge>
 									{/if}
 								</Table.Cell>
-								<!-- Asset — link stops propagation so clicking coin navigates, not expands -->
+								<!-- Asset – link stops propagation so clicking coin navigates, not expands -->
 								<Table.Cell>
 									{#if tx.isTransfer && !tx.isCoinTransfer}
 										<span class="font-medium">Cash ($)</span>

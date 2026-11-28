@@ -134,7 +134,7 @@
 
 <SignInConfirmDialog bind:open={shouldSignIn} />
 
-<div class="container mx-auto max-w-5xl px-4 py-6">
+<div class="container mx-auto max-w-5xl py-6 sm:px-4">
 	{#if !$PORTFOLIO_SUMMARY}
 		<div class="flex h-96 items-center justify-center">
 			<div class="text-center">
@@ -225,6 +225,9 @@
 										type="text"
 										bind:value={symbol}
 										placeholder="BTC"
+										autocapitalize="characters"
+										autocorrect="off"
+										spellcheck="false"
 										class="pl-8 uppercase"
 										maxlength={17}
 										required

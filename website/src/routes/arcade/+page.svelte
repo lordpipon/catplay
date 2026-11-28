@@ -35,18 +35,12 @@
 		RubberDuckIcon
 	} from '@hugeicons/core-free-icons';
 	import { formatValue, formatRelativeTime, getPublicUrl } from '$lib/utils';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 
 	interface EventData { multiplier: number; label: string; active: boolean; endsAt: string; }
 	let eventData = $state<EventData | null>(null);
-
-	onMount(async () => {
-		try {
-			const res = await fetch('/api/events');
-			if (res.ok) eventData = await res.json();
-		} catch {}
-	});
 
 	const games = [
 		{ id: 'coinflip', label: 'Coinflip', icon: CoinsDollarIcon },
@@ -63,7 +57,59 @@
 
 	let shouldSignIn = $state(false);
 	let balance = $state(0);
-	let activeGame = $state('coinflip');
+	const GAMES = ['coinflip', 'slots', 'mines', 'dice', 'tower', 'blackjack', 'higherlower', 'roulette', 'chicken', 'duckrace'];
+	const LAST_GAME_KEY = 'rugplay:arcade-game';
+	const GAME_LABELS: Record<string, string> = {
+		coinflip: 'Coinflip',
+		slots: 'Slots',
+		mines: 'Mines',
+		dice: 'Dice',
+		tower: 'Tower',
+		blackjack: 'Blackjack',
+		higherlower: 'Higher/Lower',
+		roulette: 'Roulette',
+		chicken: 'Chicken',
+		duckrace: 'Duck Race'
+	};
+	let gameTabs = $state<HTMLDivElement | null>(null);
+
+	$effect(() => {
+		const tab = gameTabs?.querySelector<HTMLElement>(`[data-game="${activeGame}"]`);
+		if (!gameTabs || !tab || gameTabs.scrollWidth <= gameTabs.clientWidth) return;
+		const strip = gameTabs.getBoundingClientRect();
+		const rect = tab.getBoundingClientRect();
+		const offset = rect.left - strip.left - (strip.width - rect.width) / 2;
+		gameTabs.scrollBy({ left: offset, behavior: 'smooth' });
+	});
+
+	const requestedGame = page.url.searchParams.get('game');
+	let activeGame = $state(
+		requestedGame && GAMES.includes(requestedGame) ? requestedGame : 'coinflip'
+	);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/events');
+			if (res.ok) eventData = await res.json();
+		} catch {}
+		if (requestedGame && GAMES.includes(requestedGame)) return;
+		try {
+			const lastGame = localStorage.getItem(LAST_GAME_KEY);
+			if (lastGame && GAMES.includes(lastGame)) selectGame(lastGame);
+		} catch {
+		}
+	});
+
+	function selectGame(game: string) {
+		activeGame = game;
+		try {
+			localStorage.setItem(LAST_GAME_KEY, game);
+		} catch {
+		}
+		const url = new URL(page.url);
+		url.searchParams.set('game', game);
+		replaceState(url, page.state);
+	}
 
 	// Filter activities to only show bets >= $1000
 	const filteredActivities = $derived(
@@ -101,7 +147,7 @@
 
 <SignInConfirmDialog bind:open={shouldSignIn} />
 
-<div class="container mx-auto p-6">
+<div class="container mx-auto py-6 sm:px-6">
 	<h1 class="mb-6 text-center text-3xl font-bold">Arcade</h1>
 
 	{#if eventData?.active && eventData.multiplier > 1}
@@ -121,12 +167,17 @@
 	{:else}
 		<div class="mx-auto max-w-4xl space-y-6">
 			<!-- Game Selection -->
-			<div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
-				{#each games as game}
+			<div
+				bind:this={gameTabs}
+				class="scrollbar-none -mx-4 flex gap-2 overflow-x-auto overscroll-x-contain px-4 sm:mx-0 sm:justify-center sm:gap-4 sm:px-0 [&>*]:shrink-0"
+			>
+				{#each games as game (game.id)}
 					<Button
 						variant={activeGame === game.id ? 'default' : 'outline'}
-						class="flex h-auto w-full flex-col gap-1 py-3"
-						onclick={() => (activeGame = game.id)}
+						data-game={game.id}
+						aria-pressed={activeGame === game.id}
+						class="flex h-auto shrink-0 flex-col gap-1 py-3 sm:flex-row sm:py-2"
+						onclick={() => selectGame(game.id)}
 					>
 						<HugeiconsIcon icon={game.icon} class="h-5 w-5" />
 						<span class="text-xs">{game.label}</span>
