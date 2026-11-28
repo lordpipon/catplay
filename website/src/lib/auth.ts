@@ -387,10 +387,6 @@ export const auth = betterAuth({
 				notify(sessionEmail, 'PASSKEY_REMOVED', [
 					{ label: 'Passkey ID', value: String(body.id ?? '') }
 				]);
-			} else if (path === '/two-factor/enable') {
-				notify(sessionEmail, 'TWO_FACTOR_ENABLED', [
-					{ label: 'Method', value: 'Authenticator app' }
-				]);
 			} else if (path === '/two-factor/disable') {
 				notify(sessionEmail, 'TWO_FACTOR_DISABLED', [
 					{ label: 'Method', value: 'Authenticator app' }
@@ -459,6 +455,20 @@ export const auth = betterAuth({
 					}
 
 					return { data: userData };
+				}
+			},
+			update: {
+				after: async (user, context) => {
+					const previous = (context as any)?.context?.session?.user as
+						| { email?: string; twoFactorEnabled?: boolean }
+						| undefined;
+					const enabled = (user as any)?.twoFactorEnabled === true;
+					if (!enabled || previous?.twoFactorEnabled) return;
+					const email = (user as any)?.email as string | undefined;
+					if (!email) return;
+					void sendSecurityAlertEmail(email, 'TWO_FACTOR_ENABLED', [
+						{ label: 'Method', value: 'Authenticator app' }
+					]).catch((error) => console.error('[security-email] Failed to send alert:', error));
 				}
 			}
 		},
