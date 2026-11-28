@@ -224,6 +224,7 @@ export async function sendEmailChangeConfirmationEmail(
 }
 
 export type SecurityEvent =
+	| 'SIGNED_IN'
 	| 'PASSWORD_CHANGED'
 	| 'EMAIL_CHANGED'
 	| 'PASSKEY_ADDED'
@@ -231,30 +232,41 @@ export type SecurityEvent =
 	| 'TWO_FACTOR_ENABLED'
 	| 'TWO_FACTOR_DISABLED';
 
-const SECURITY_DETAILS: Record<SecurityEvent, { title: string; intro: string }> = {
+const SECURITY_DETAILS: Record<SecurityEvent, { title: string; intro: string; note: string }> = {
+	SIGNED_IN: {
+		title: 'New sign-in to Catplay',
+		intro: 'Your Catplay account was just signed in. If this was you, no further action is needed.',
+		note: "If this wasn't you, change your password immediately."
+	},
 	PASSWORD_CHANGED: {
 		title: 'Your password was changed',
-		intro: 'Your Catplay password was just changed. If this was you, no further action is needed.'
+		intro: 'Your Catplay password was just changed. If this was you, no further action is needed.',
+		note: 'If you did not make this change, contact us immediately so we can secure your account.'
 	},
 	EMAIL_CHANGED: {
 		title: 'Your email address was changed',
-		intro: 'Your Catplay account email address was just changed. If this was you, no further action is needed.'
+		intro: 'Your Catplay account email address was just changed. If this was you, no further action is needed.',
+		note: 'If you did not make this change, contact us immediately so we can secure your account.'
 	},
 	PASSKEY_ADDED: {
 		title: 'A passkey was added',
-		intro: 'A new passkey was added to your Catplay account. If this was you, no further action is needed.'
+		intro: 'A new passkey was added to your Catplay account. If this was you, no further action is needed.',
+		note: 'If you did not make this change, contact us immediately so we can secure your account.'
 	},
 	PASSKEY_REMOVED: {
 		title: 'A passkey was removed',
-		intro: 'A passkey was removed from your Catplay account. If this was you, no further action is needed.'
+		intro: 'A passkey was removed from your Catplay account. If this was you, no further action is needed.',
+		note: 'If you did not make this change, contact us immediately so we can secure your account.'
 	},
 	TWO_FACTOR_ENABLED: {
 		title: 'Two-factor authentication enabled',
-		intro: 'Authenticator app protection was enabled on your Catplay account.'
+		intro: 'Authenticator app protection was enabled on your Catplay account.',
+		note: 'If you did not make this change, contact us immediately so we can secure your account.'
 	},
 	TWO_FACTOR_DISABLED: {
 		title: 'Two-factor authentication disabled',
-		intro: 'Authenticator app protection was removed from your Catplay account.'
+		intro: 'Authenticator app protection was removed from your Catplay account.',
+		note: 'If you did not make this change, contact us immediately so we can secure your account.'
 	}
 };
 
@@ -276,8 +288,8 @@ export async function sendSecurityAlertEmail(
 				...details,
 				{ label: 'Time', value: new Date().toUTCString() }
 			],
-			note: 'If you did not make this change, contact us immediately so we can secure your account.'
+			note: copy.note
 		}),
-		text: `${copy.title}\n\n${copy.intro}\n\nIf you did not make this change, contact ${CONTACT_EMAIL}.`
+		text: `${copy.title}\n\n${copy.intro}\n\n${copy.note} Contact ${CONTACT_EMAIL} if you need help.`
 	});
 }

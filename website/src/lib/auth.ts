@@ -493,6 +493,27 @@ export const auth = betterAuth({
 						await clearExpiredBan(userId);
 					}
 					return { data: sessionData };
+				},
+				after: async (session) => {
+					const userId = Number((session as any)?.userId);
+					if (!Number.isFinite(userId)) return;
+
+					const [record] = await db
+						.select({ email: schema.user.email })
+						.from(schema.user)
+						.where(eq(schema.user.id, userId))
+						.limit(1);
+					if (!record?.email) return;
+
+					const details: { label: string; value: string }[] = [];
+					const ip = String((session as any)?.ipAddress ?? '').trim();
+					const userAgent = String((session as any)?.userAgent ?? '').trim();
+					if (ip) details.push({ label: 'IP address', value: ip });
+					if (userAgent) details.push({ label: 'Device', value: userAgent.slice(0, 160) });
+
+					void sendSecurityAlertEmail(record.email, 'SIGNED_IN', details).catch((error) =>
+						console.error('[security-email] Failed to send sign-in alert:', error)
+					);
 				}
 			}
 		}
