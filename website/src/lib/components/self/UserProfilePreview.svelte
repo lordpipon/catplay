@@ -41,31 +41,27 @@
 	let error = $state(false);
 
 	async function fetchUserData() {
+		const id = userId;
 		loading = true;
 		error = false;
+		userData = null;
 
 		try {
 			const result = await loadProfile(id);
-			if (signal.aborted) return;
+			if (id !== userId) return;
 			if (result) userData = result;
 			else error = true;
 		} catch (e) {
+			if (id !== userId) return;
 			console.error('Failed to fetch user data:', e);
 			error = true;
 		} finally {
-			loading = false;
+			if (id === userId) loading = false;
 		}
 	}
 
 	$effect(() => {
-		if (userId) {
-			const abortController = new AbortController();
-			fetchUserData();
-
-			return () => {
-				abortController.abort();
-			};
-		}
+		if (userId) void fetchUserData();
 	});
 
 	let profile = $derived(userData?.profile);

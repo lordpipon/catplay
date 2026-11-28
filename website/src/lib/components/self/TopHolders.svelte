@@ -154,8 +154,13 @@
 			<div class="space-y-3">
 				{#each holdersData.holders.slice(0, 3) as holder}
 					<div class="flex items-center gap-2">
-						<div
+						<button
+							type="button"
 							class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 border-none bg-transparent p-0 text-left"
+							onclick={(event) => {
+								event.stopPropagation();
+								void goto(`/user/${holder.username}`);
+							}}
 						>
 							<Avatar.Root class="h-8 w-8 flex-shrink-0">
 								<Avatar.Image
@@ -174,7 +179,7 @@
 									@{holder.username}
 								</p>
 							</div>
-						</div>
+						</button>
 
 						<div class="flex flex-shrink-0 items-center gap-1.5 text-right">
 							<div class="hidden sm:block">
@@ -224,6 +229,7 @@
 							columns={holdersColumns}
 							data={holdersData.holders}
 							onRowClick={(holder) => goto(`/user/${holder.username}`)}
+							onUserClick={(holder) => goto(`/user/${holder.username}`)}
 							enableUserPreview={true}
 							emptyTitle="No holders found"
 							emptyDescription="This coin doesn't have any holders yet."

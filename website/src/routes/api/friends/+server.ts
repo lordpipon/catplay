@@ -56,8 +56,12 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (action === 'send') {
 		if (existing.length) {
 			if (existing[0].status === 'accepted') throw error(400, 'Already friends');
-			if (existing[0].status === 'pending' && existing[0].requesterId === userId)
-				throw error(400, 'Request already sent');
+			if (existing[0].status === 'pending' && existing[0].requesterId === userId) {
+				return json({ success: true, alreadyPending: true });
+			}
+			if (existing[0].status === 'pending') {
+				throw error(400, 'This user already sent you a friend request');
+			}
 		}
 		await db.insert(friendship).values({
 			requesterId: userId,

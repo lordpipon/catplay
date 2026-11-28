@@ -31,7 +31,7 @@
 		CandlestickSeries,
 		HistogramSeries
 	} from 'lightweight-charts';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import CoinIcon from '$lib/components/self/CoinIcon.svelte';
@@ -437,123 +437,118 @@
 	}
 
 	$effect(() => {
-		if (chart && chartData.length > 0) {
-			chart.remove();
-			chart = null;
-		}
+		const container = chartContainer;
+		const symbol = coinSymbol;
+		const hasData = hasChartData;
+		const revision = chartRevision;
+		void revision;
 
-		if (container && hasData && symbol) {
-			const initialChartData = untrack(() => chartData);
-			const initialVolumeData = untrack(() => volumeData);
-			const colors = untrack(() => chartColors(mode.current !== 'light'));
-			chart = createChart(container, {
-				layout: {
-					textColor: colors.text,
-					background: { type: ColorType.Solid, color: 'transparent' },
-					attributionLogo: false,
-					panes: {
-						separatorColor: colors.grid,
-						separatorHoverColor: 'rgba(107, 114, 142, 0.3)',
-						enableResize: true
-					}
-				},
-				grid: {
-					vertLines: { color: colors.grid },
-					horzLines: { color: colors.grid }
-				},
-				rightPriceScale: {
-					borderVisible: false,
-					scaleMargins: { top: 0.1, bottom: 0.1 },
-					alignLabels: true,
-					entireTextOnly: false
-				},
-				timeScale: {
-					borderVisible: false,
-					timeVisible: true,
-					barSpacing: 20,
-					rightOffset: 5,
-					minBarSpacing: 8
-				},
-				// Let vertical swipes over the chart scroll the page on touch screens
-				handleScroll: { vertTouchDrag: false },
-				crosshair: {
-					mode: 1,
-					vertLine: { color: '#758696', width: 1, style: 2, visible: true, labelVisible: true },
-					horzLine: { color: '#758696', width: 1, style: 2, visible: true, labelVisible: true }
+		if (!container || !hasData || !symbol) return;
+
+		chart?.remove();
+		chart = null;
+		candlestickSeries = null;
+		volumeSeries = null;
+
+		const initialChartData = untrack(() => chartData);
+		const initialVolumeData = untrack(() => volumeData);
+		const colors = untrack(() => chartColors(mode.current !== 'light'));
+		const activeChart = createChart(container, {
+			layout: {
+				textColor: colors.text,
+				background: { type: ColorType.Solid, color: 'transparent' },
+				attributionLogo: false,
+				panes: {
+					separatorColor: colors.grid,
+					separatorHoverColor: 'rgba(107, 114, 142, 0.3)',
+					enableResize: true
 				}
-			});
-			candlestickSeries = chart.addSeries(CandlestickSeries, {
-				upColor: '#26a69a',
-				downColor: '#ef5350',
-				borderVisible: true,
-				borderUpColor: '#26a69a',
-				borderDownColor: '#ef5350',
-				wickUpColor: '#26a69a',
-				wickDownColor: '#ef5350',
-				priceFormat: window.matchMedia('(max-width: 639px)').matches
-					? { type: 'custom', minMove: 0.00000001, formatter: formatCompactChartPrice }
-					: { type: 'price', precision: 8, minMove: 0.00000001 }
-			});
+			},
+			grid: {
+				vertLines: { color: colors.grid },
+				horzLines: { color: colors.grid }
+			},
+			rightPriceScale: {
+				borderVisible: false,
+				scaleMargins: { top: 0.1, bottom: 0.1 },
+				alignLabels: true,
+				entireTextOnly: false
+			},
+			timeScale: {
+				borderVisible: false,
+				timeVisible: true,
+				barSpacing: 20,
+				rightOffset: 5,
+				minBarSpacing: 8
+			},
+			// Let vertical swipes over the chart scroll the page on touch screens
+			handleScroll: { vertTouchDrag: false },
+			crosshair: {
+				mode: 1,
+				vertLine: { color: '#758696', width: 1, style: 2, visible: true, labelVisible: true },
+				horzLine: { color: '#758696', width: 1, style: 2, visible: true, labelVisible: true }
+			}
+		});
+		chart = activeChart;
 
-			volumeSeries = chart.addSeries(
-				HistogramSeries,
-				{
-					priceFormat: { type: 'volume' },
-					priceScaleId: 'volume'
-				},
-				1
-			);
+		candlestickSeries = activeChart.addSeries(CandlestickSeries, {
+			upColor: '#26a69a',
+			downColor: '#ef5350',
+			borderVisible: true,
+			borderUpColor: '#26a69a',
+			borderDownColor: '#ef5350',
+			wickUpColor: '#26a69a',
+			wickDownColor: '#ef5350',
+			priceFormat: window.matchMedia('(max-width: 639px)').matches
+				? { type: 'custom', minMove: 0.00000001, formatter: formatCompactChartPrice }
+				: { type: 'price', precision: 8, minMove: 0.00000001 }
+		});
 
-			const processedChartData = chartData.map(
-				(candle: { open: any; close: any; high: number; low: number }) => {
-					if (candle.open === candle.close) {
-						const basePrice = candle.open;
-						const variation = basePrice * 0.001;
-						return {
-							...candle,
-							high: Math.max(candle.high, basePrice + variation),
-							low: Math.min(candle.low, basePrice - variation)
-						};
-					}
-					return candle;
-				}
-			);
+		volumeSeries = activeChart.addSeries(
+			HistogramSeries,
+			{
+				priceFormat: { type: 'volume' },
+				priceScaleId: 'volume'
+			},
+			1
+		);
 
-			candlestickSeries.setData(processedChartData);
-			volumeSeries.setData(generateVolumeData(chartData, volumeData));
+		candlestickSeries.setData(processCandles(initialChartData));
+		volumeSeries.setData(generateVolumeData(initialChartData, initialVolumeData));
 
-			const volumePane = chart.panes()[1];
-			if (volumePane) volumePane.setHeight(100);
+		const volumePane = activeChart.panes()[1];
+		if (volumePane) volumePane.setHeight(100);
 
-			chart.timeScale().fitContent();
+		activeChart.timeScale().fitContent();
 
-			const handleResize = () => chart?.applyOptions({ width: container.clientWidth });
-			const resizeObserver = new ResizeObserver(handleResize);
-			resizeObserver.observe(container);
-			handleResize();
+		const handleResize = () => activeChart.applyOptions({ width: container.clientWidth });
+		const resizeObserver = new ResizeObserver(handleResize);
+		resizeObserver.observe(container);
+		handleResize();
 
-			candlestickSeries.priceScale().applyOptions({ borderColor: colors.border });
-			volumeSeries.priceScale().applyOptions({ borderColor: colors.border });
-			chart.timeScale().applyOptions({ borderColor: colors.border });
+		candlestickSeries.priceScale().applyOptions({ borderColor: colors.border });
+		volumeSeries.priceScale().applyOptions({ borderColor: colors.border });
+		activeChart.timeScale().applyOptions({ borderColor: colors.border });
 
-			const timeScale = chart.timeScale();
-			const handleVisibleRangeChange = () => {
-				const logicalRange = timeScale.getVisibleLogicalRange();
-				if (logicalRange && logicalRange.from < 5) {
-					loadOlderChartData();
-				}
-			};
-			timeScale.subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
+		const timeScale = activeChart.timeScale();
+		const handleVisibleRangeChange = () => {
+			const logicalRange = timeScale.getVisibleLogicalRange();
+			if (logicalRange && logicalRange.from < 5) {
+				loadOlderChartData();
+			}
+		};
+		timeScale.subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
 
-			return () => {
-				timeScale.unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
-				resizeObserver.disconnect();
-				if (chart) {
-					chart.remove();
-					chart = null;
-				}
-			};
-		}
+		return () => {
+			timeScale.unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
+			resizeObserver.disconnect();
+			if (chart === activeChart) {
+				activeChart.remove();
+				chart = null;
+				candlestickSeries = null;
+				volumeSeries = null;
+			}
+		};
 	});
 
 	function formatPrice(price: number): string {
@@ -780,8 +775,16 @@
 
 					<HoverCard.Root>
 						<HoverCard.Trigger
+							role="link"
+							tabindex="0"
 							class="flex max-w-[200px] min-w-0 cursor-pointer items-center gap-1 rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 sm:max-w-[250px]"
 							onclick={() => goto(`/user/${coin.creatorUsername}`)}
+							onkeydown={(event) => {
+								if (event.key === 'Enter') {
+									event.preventDefault();
+									void goto(`/user/${coin.creatorUsername}`);
+								}
+							}}
 						>
 							<Avatar.Root class="h-4 w-4 flex-shrink-0">
 								<Avatar.Image src={getPublicUrl(coin.creatorImage)} alt={coin.creatorName} />

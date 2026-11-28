@@ -13,6 +13,7 @@
 		Dollar02Icon
 	} from '@hugeicons/core-free-icons';
 	import { PORTFOLIO_SUMMARY } from '$lib/stores/portfolio-data';
+	import { SWAP_FEE_RATE } from '$lib/data/constants';
 	import { toast } from 'svelte-sonner';
 	import { haptic } from '$lib/stores/haptics';
 
@@ -139,12 +140,12 @@
 	});
 
 	function calculateEstimate(amount: number, tradeType: 'BUY' | 'SELL', price: number) {
-		if (!amount || !price || !coin) return { result: 0 };
+		if (!amount || !price || !coin) return { result: 0, fee: 0 };
 
 		const poolCoin = Number(coin.poolCoinAmount);
 		const poolBase = Number(coin.poolBaseCurrencyAmount);
 
-		if (poolCoin <= 0 || poolBase <= 0) return { result: 0 };
+		if (poolCoin <= 0 || poolBase <= 0) return { result: 0, fee: 0 };
 
 		const k = poolCoin * poolBase;
 
@@ -152,12 +153,13 @@
 			// AMM formula: how many coins for spending 'amount' dollars
 			const newPoolBase = poolBase + amount;
 			const newPoolCoin = k / newPoolBase;
-			return { result: poolCoin - newPoolCoin };
+			return { result: poolCoin - newPoolCoin, fee: amount * SWAP_FEE_RATE };
 		} else {
 			// AMM formula: how many dollars for selling 'amount' coins
 			const newPoolCoin = poolCoin + amount;
 			const newPoolBase = k / newPoolCoin;
-			return { result: poolBase - newPoolBase };
+			const result = poolBase - newPoolBase;
+			return { result, fee: result * SWAP_FEE_RATE };
 		}
 	}
 
@@ -409,7 +411,7 @@
 							Trading fee ({(SWAP_FEE_RATE * 100).toFixed(1)}%)
 						</span>
 						<span class="text-muted-foreground text-xs">
-							-${estimatedResult.fee.toFixed(6)}
+							-${(estimatedResult.fee ?? 0).toFixed(6)}
 						</span>
 					</div>
 					<div class="mt-1 flex items-center justify-between">

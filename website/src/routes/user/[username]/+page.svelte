@@ -164,8 +164,12 @@
 		} catch {}
 	}
 
+	function friendErrorMessage(data: any, fallback: string) {
+		return data?.message || data?.error || fallback;
+	}
+
 	async function sendFriendRequest() {
-		if (!$USER_DATA || friendLoading) return;
+		if (!$USER_DATA || friendLoading || !profileData?.profile?.id) return;
 		friendLoading = true;
 		try {
 			const res = await fetch('/api/friends', {
@@ -173,12 +177,12 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ targetUserId: profileData.profile.id, action: 'send' })
 			});
+			const d = await res.json().catch(() => null);
 			if (res.ok) {
 				friendStatus = { status: 'pending', direction: 'outgoing' };
 				toast.success('Friend request sent');
 			} else {
-				const d = await res.json();
-				toast.error(d.error || 'Failed to send request');
+				toast.error(friendErrorMessage(d, 'Failed to send request'));
 			}
 		} catch {
 			toast.error('Network error');
@@ -202,7 +206,7 @@
 				toast.success('Friend removed');
 			} else {
 				const d = await res.json();
-				toast.error(d.error || 'Failed to remove friend');
+				toast.error(friendErrorMessage(d, 'Failed to remove friend'));
 			}
 		} catch {
 			toast.error('Network error');
@@ -225,7 +229,7 @@
 				toast.success('Request cancelled');
 			} else {
 				const d = await res.json();
-				toast.error(d.error || 'Failed to cancel request');
+				toast.error(friendErrorMessage(d, 'Failed to cancel request'));
 			}
 		} catch {
 			toast.error('Network error');
@@ -863,7 +867,7 @@
 													toast.success('Friend request accepted');
 												} else {
 													const d = await res.json();
-													toast.error(d.error || 'Failed to accept');
+													toast.error(friendErrorMessage(d, 'Failed to accept'));
 												}
 											} catch {
 												toast.error('Network error');
@@ -892,6 +896,9 @@
 												if (res.ok) {
 													friendStatus = null;
 													toast.success('Request declined');
+												} else {
+													const d = await res.json().catch(() => null);
+													toast.error(friendErrorMessage(d, 'Failed to decline'));
 												}
 											} catch {
 												toast.error('Network error');

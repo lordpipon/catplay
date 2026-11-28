@@ -29,7 +29,8 @@
 		emptyTitle = $_('leaderboard.no_data'),
 		emptyDescription = '',
 		enableUserPreview = false,
-		mobileColumnOrder
+		mobileColumnOrder,
+		onUserClick
 	}: {
 		columns: Column[];
 		data: any[];
@@ -40,6 +41,7 @@
 		emptyDescription?: string;
 		enableUserPreview?: boolean;
 		mobileColumnOrder?: string[];
+		onUserClick?: (row: any) => void;
 	} = $props();
 
 	let displayColumns = $derived.by(() => {
@@ -118,6 +120,12 @@
 			sortColumn = columnKey;
 			sortDirection = 'desc';
 		}
+	}
+
+	function handleUserClick(event: MouseEvent, row: any) {
+		if (!onUserClick) return;
+		event.stopPropagation();
+		onUserClick(row);
 	}
 
 	function renderCell(column: any, row: any, value: any, index: number) {
@@ -247,7 +255,10 @@
 							{:else if cellData.type === 'user'}
 								{#if enableUserPreview}
 									<HoverCard.Root>
-										<HoverCard.Trigger>
+										<HoverCard.Trigger
+											class="flex w-full items-center gap-2 text-left"
+											onclick={(event) => handleUserClick(event, row)}
+										>
 											<div class="flex items-center gap-2">
 												<Avatar.Root class="h-7 w-7 shrink-0">
 													<Avatar.Image src={getPublicUrl(cellData.image)} alt={cellData.name} />
@@ -272,7 +283,11 @@
 										</HoverCard.Content>
 									</HoverCard.Root>
 								{:else}
-									<div class="flex items-center gap-2">
+									<button
+										type="button"
+										class="flex w-full items-center gap-2 text-left"
+										onclick={(event) => handleUserClick(event, row)}
+									>
 										<Avatar.Root class="h-7 w-7 shrink-0">
 											<Avatar.Image src={getPublicUrl(cellData.image)} alt={cellData.name} />
 											<Avatar.Fallback class="text-xs"
@@ -289,7 +304,7 @@
 											/>
 											<span class="text-muted-foreground max-w-full truncate text-xs">@{cellData.username}</span>
 										</div>
-									</div>
+									</button>
 								{/if}
 							{:else if cellData.type === 'text'}
 								<span class={cellData.class}>{cellData.text}</span>

@@ -450,13 +450,6 @@
 						<button type="button" class="text-primary cursor-pointer" onclick={() => requestPasswordReset()}>
 							Forgot password?
 						</button>
-						<button
-							type="button"
-							class="text-primary cursor-pointer"
-							onclick={() => askForCode('sign-in')}
-						>
-							Sign in with code
-						</button>
 					</div>
 				{/if}
 
