@@ -24,10 +24,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		throw error(403, 'Admin access required');
 	}
 
-	const { username, reason } = await request.json();
+	const body = await request.json().catch(() => ({}));
+	const username = body.username;
+	const reason = body.reason;
+	const durationSeconds = Number(body.durationSeconds ?? 0);
+	const allowedDurations = new Set([0, 3600, 86400, 604800, 2592000]);
 
 	if (!username?.trim() || !reason?.trim()) {
 		throw error(400, 'Username and reason are required');
+	}
+	if (!allowedDurations.has(durationSeconds)) {
+		throw error(400, 'Invalid ban duration');
 	}
 
 	try {
@@ -64,6 +71,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				.set({
 					isBanned: true,
 					banReason: reason.trim(),
+					banExpires: durationSeconds > 0 ? new Date(Date.now() + durationSeconds * 1000) : null,
 					flags: sql`${targetUser.flags} & ~${UserFlags.IS_ADMIN}`, // <-- Automatically strips admin status on ban
 					updatedAt: new Date()
 				})
@@ -79,7 +87,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			console.warn('Failed to clear user cache:', e);
 		}
 
-		writeAdminLog(Number(authSession.user.id), 'BAN', targetUser.id, `Reason: ${reason.trim()}`);
+		const durationLabel = durationSeconds ? `${durationSeconds / 3600}h` : 'permanent';
+		writeAdminLog(
+			Number(authSession.user.id),
+			'BAN',
+			targetUser.id,
+			`Reason: ${reason.trim()} (${durationLabel})`
+		);
 
 		return json({ success: true });
 	} catch (e: any) {

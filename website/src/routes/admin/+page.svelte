@@ -34,14 +34,21 @@
 	let stats = $state<SystemStats | null>(null);
 	let statsError = $state(false);
 
-	onMount(async () => {
+	async function loadStats() {
 		try {
-			const res = await fetch('/api/admin/stats');
+			const res = await fetch('/api/admin/stats', { cache: 'no-store' });
 			if (!res.ok) throw new Error();
 			stats = await res.json();
+			statsError = false;
 		} catch {
 			statsError = true;
 		}
+	}
+
+	onMount(() => {
+		loadStats();
+		const timer = setInterval(loadStats, 30_000);
+		return () => clearInterval(timer);
 	});
 
 	type StatTile = { label: string; value: string; color: string };

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
+	import { CONTACT_EMAIL, DISCORD_INVITE } from '$lib/site';
 
 	let clickCount = $state(0);
 
@@ -49,7 +50,8 @@
 			{message}
 		</p>
 		<div class="flex flex-col">
-			<Button variant="link" href="https://discord.gg/NKzq7ppNQK" target="_blank">@Discord</Button>
+			<Button variant="link" href={DISCORD_INVITE} target="_blank">@Discord</Button>
+			<Button variant="link" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</Button>
 		</div>
 	</div>
 

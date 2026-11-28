@@ -7,9 +7,9 @@
 	import * as Alert from '$lib/components/ui/alert';
 	import { goto } from '$app/navigation';
 	import SEO from '$lib/components/self/SEO.svelte';
+	import { CONTACT_EMAIL } from '$lib/site';
 
 	const LAST_UPDATED = 'February 21, 2026';
-	const CONTACT_EMAIL = 'contact@outpoot.com';
 </script>
 
 <SEO

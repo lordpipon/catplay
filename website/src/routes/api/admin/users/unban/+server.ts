@@ -36,6 +36,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			.set({
 				isBanned: false,
 				banReason: null,
+				banExpires: null,
 				updatedAt: new Date()
 			})
 			.where(eq(user.id, userId));

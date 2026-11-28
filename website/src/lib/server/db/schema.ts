@@ -68,6 +68,7 @@ export const user = pgTable(
 
 		isBanned: boolean('is_banned').default(false),
 		banReason: text('ban_reason'),
+		banExpires: timestamp('ban_expires', { withTimezone: true }),
 		baseCurrencyBalance: decimal('base_currency_balance', {
 			precision: 30,
 			scale: 8
@@ -116,7 +117,9 @@ export const user = pgTable(
 		timezone: integer('timezone').default(0),
 		halloweenBadge2026: boolean('halloween_badge_2026').notNull().default(false),
 		signupIp: text('signup_ip'),
-		altWarning: text('alt_warning')
+		altWarning: text('alt_warning'),
+		signupDeviceId: text('signup_device_id'),
+		twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false)
 	},
 	(table) => {
 		return {
@@ -124,7 +127,8 @@ export const user = pgTable(
 			isBannedIdx: index('user_is_banned_idx').on(table.isBanned),
 			createdAtIdx: index('user_created_at_idx').on(table.createdAt),
 			updatedAtIdx: index('user_updated_at_idx').on(table.updatedAt),
-			signupIpIdx: index('user_signup_ip_idx').on(table.signupIp)
+			signupIpIdx: index('user_signup_ip_idx').on(table.signupIp),
+			signupDeviceIdx: index('user_signup_device_idx').on(table.signupDeviceId)
 		};
 	}
 );
@@ -168,6 +172,48 @@ export const verification = pgTable('verification', {
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow()
 });
+
+export const passkey = pgTable(
+	'passkey',
+	{
+		id: serial('id').primaryKey(),
+		name: text('name'),
+		publicKey: text('public_key').notNull(),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		credentialID: text('credential_id').notNull().unique(),
+		counter: integer('counter').notNull().default(0),
+		deviceType: text('device_type').notNull(),
+		backedUp: boolean('backed_up').notNull().default(false),
+		transports: text('transports'),
+		aaguid: text('aaguid'),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow()
+	},
+	(table) => ({
+		userIdIdx: index('passkey_user_id_idx').on(table.userId),
+		credentialIdx: index('passkey_credential_id_idx').on(table.credentialID)
+	})
+);
+
+export const twoFactor = pgTable(
+	'two_factor',
+	{
+		id: serial('id').primaryKey(),
+		secret: text('secret').notNull(),
+		backupCodes: text('backup_codes').notNull(),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		verified: boolean('verified').notNull().default(true),
+		failedVerificationCount: integer('failed_verification_count').notNull().default(0),
+		lockedUntil: timestamp('locked_until', { withTimezone: true })
+	},
+	(table) => ({
+		secretIdx: index('two_factor_secret_idx').on(table.secret),
+		userIdIdx: index('two_factor_user_id_idx').on(table.userId)
+	})
+);
 
 export const coin = pgTable(
 	'coin',

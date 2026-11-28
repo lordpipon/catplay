@@ -23,7 +23,15 @@
 	let loading = $state(true);
 	let claiming = $state<number | null>(null);
 
-	let claimedIds = $derived<number[]>(progress ? JSON.parse(progress.claimedTiers || '[]') : []);
+	let claimedIds = $derived.by(() => {
+		if (!progress) return [];
+		try {
+			const parsed = JSON.parse(progress.claimedTiers || '[]');
+			return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isInteger) : [];
+		} catch {
+			return [];
+		}
+	});
 	let levels = $derived([...new Set(tiers.map(t => t.level))].sort((a, b) => a - b));
 	let currentLevel = $derived(progress?.level ?? 0);
 
@@ -41,12 +49,14 @@
 		if (claimedIds.includes(tier.id)) return false;
 		if (tier.tier === 'premium' && !isVip) return false;
 		if (!isTierComplete(tier) && tier.taskType !== 'manual') return false;
-		return progress.level >= tier.level;
+		const requiredLevel = tier.taskType === 'manual' ? Math.max(0, tier.level - 1) : tier.level;
+		return progress.level >= requiredLevel;
 	}
 
 	function taskProgress(tier: Tier): { current: number; target: number; pct: number } {
 		const current = Math.min(counts[tier.taskType] ?? 0, tier.taskTarget);
-		return { current, target: tier.taskTarget, pct: Math.min(100, Math.round((current / tier.taskTarget) * 100)) };
+		const pct = tier.taskTarget > 0 ? Math.min(100, Math.round((current / tier.taskTarget) * 100)) : 100;
+		return { current, target: tier.taskTarget, pct };
 	}
 
 	function gemReward(tier: Tier): { amount: number; cash: number } | null {
@@ -110,10 +120,16 @@
 				body: JSON.stringify({ action: 'claim', tierId: tier.id })
 			});
 			const d = await res.json();
-			if (!res.ok) { toast.error(d.error || 'Failed to claim'); return; }
+			if (!res.ok) {
+				toast.error(d.error || 'Failed to claim');
+				await load();
+				return;
+			}
 			toast.success(`Claimed: ${tier.rewardLabel || d.reward?.label}`);
+		} finally {
+			claiming = null;
 			await load();
-		} finally { claiming = null; }
+		}
 	}
 </script>
 
@@ -160,7 +176,7 @@
 				</div>
 				<div class="text-left sm:text-right">
 					<p class="text-2xl font-bold">Level {currentLevel}</p>
-					<p class="text-muted-foreground text-xs">100 levels total</p>
+					<p class="text-muted-foreground text-xs">{levels.length} levels total</p>
 				</div>
 			</Card.Content>
 		</Card.Root>

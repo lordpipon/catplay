@@ -15,6 +15,7 @@
 		name: string;
 		username: string;
 		banReason: string;
+		banExpires?: string | null;
 	}
 
 	let bannedUsers = $state<BannedUser[]>([]);
@@ -23,6 +24,7 @@
 	let banDialogOpen = $state(false);
 	let usernameToAction = $state('');
 	let banReason = $state('');
+	let banDuration = $state('0');
 
 	async function loadBannedUsers() {
 		loading = true;
@@ -46,7 +48,11 @@
 			const response = await fetch('/api/admin/users/ban', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username: usernameToAction.trim(), reason: banReason.trim() })
+				body: JSON.stringify({
+					username: usernameToAction.trim(),
+					reason: banReason.trim(),
+					durationSeconds: Number(banDuration)
+				})
 			});
 
 			if (response.ok) {
@@ -92,6 +98,7 @@
 	function openBanDialog() {
 		usernameToAction = '';
 		banReason = '';
+		banDuration = '0';
 		banDialogOpen = true;
 	}
 
@@ -141,6 +148,13 @@
 									<span class="font-medium">Reason:</span>
 									{user.banReason}
 								</div>
+								{#if user.banExpires}
+									<div class="text-muted-foreground text-xs">
+										Expires {new Date(user.banExpires).toLocaleString()}
+									</div>
+								{:else}
+									<div class="text-muted-foreground text-xs">Permanent ban</div>
+								{/if}
 							</div>
 							<Button
 								size="sm"
@@ -183,6 +197,20 @@
 					placeholder="Enter the reason for banning this user..."
 					required
 				/>
+			</div>
+			<div>
+				<label for="ban-duration" class="mb-2 block text-sm font-medium">Ban duration</label>
+				<select
+					id="ban-duration"
+					bind:value={banDuration}
+					class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm"
+				>
+					<option value="0">Permanent</option>
+					<option value="3600">1 hour</option>
+					<option value="86400">24 hours</option>
+					<option value="604800">7 days</option>
+					<option value="2592000">30 days</option>
+				</select>
 			</div>
 		</div>
 		<Dialog.Footer>

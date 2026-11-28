@@ -1,6 +1,7 @@
 // src/lib/auth.ts (or your auth config file)
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { eq } from 'drizzle-orm';
 import { env as privateEnv } from '$env/dynamic/private';
 import { env as publicEnv } from '$env/dynamic/public';
 import { db } from './server/db';
@@ -9,12 +10,34 @@ import { generateUsername } from './utils/random';
 import { uploadProfilePicture } from './server/s3';
 import { trustedOrigins } from './server/site-config';
 import { apiKey } from '@better-auth/api-key';
-import { isProxyIp, getClientIp } from './server/anti-abuse';
+import { passkey } from '@better-auth/passkey';
+import { emailOTP } from 'better-auth/plugins/email-otp';
+import { magicLink } from 'better-auth/plugins/magic-link';
+import { twoFactor } from 'better-auth/plugins/two-factor';
+import { createAuthMiddleware } from 'better-auth/api';
+import { isProxyIp, getClientIp, checkAccountLimitForIp } from './server/anti-abuse';
 import { hasMxRecords } from './server/email-domain';
+import {
+	sendEmailChangeConfirmationEmail,
+	sendMagicLinkEmail,
+	sendPasswordResetEmail,
+	sendSecurityAlertEmail,
+	sendVerificationCodeEmail
+} from './server/email';
+import { clearExpiredBan, isBanActive } from './server/ban';
+import { CONTACT_EMAIL, SITE_NAME, SITE_ORIGIN } from './site';
 
 if (!privateEnv.GOOGLE_CLIENT_ID) throw new Error('GOOGLE_CLIENT_ID is not set');
 if (!privateEnv.GOOGLE_CLIENT_SECRET) throw new Error('GOOGLE_CLIENT_SECRET is not set');
 if (!publicEnv.PUBLIC_BETTER_AUTH_URL) throw new Error('PUBLIC_BETTER_AUTH_URL is not set');
+
+const PASSKEY_RP_ID = (() => {
+	try {
+		return new URL(SITE_ORIGIN).hostname;
+	} catch {
+		return 'catplay.org';
+	}
+})();
 
 const DISPOSABLE_DOMAINS = new Set([
 	'guerrillamail.com','guerrillamail.de','guerrillamail.net','guerrillamail.org',
@@ -285,11 +308,94 @@ export const auth = betterAuth({
 					api: ['read']
 				}
 			}
+		}),
+		emailOTP({
+			sendVerificationOTP: async ({ email, otp, type }) => {
+				await sendVerificationCodeEmail(email, otp, type, 5);
+			},
+			sendVerificationOnSignUp: true,
+			overrideDefaultEmailVerification: true,
+			otpLength: 6,
+			expiresIn: 300,
+			allowedAttempts: 3,
+			rateLimit: { window: 60, max: 3 },
+			changeEmail: { enabled: true, verifyCurrentEmail: true }
+		}),
+		magicLink({
+			sendMagicLink: async ({ email, url }) => {
+				await sendMagicLinkEmail(email, url);
+			},
+			disableSignUp: true,
+			expiresIn: 300,
+			rateLimit: { window: 60, max: 3 }
+		}),
+		twoFactor({
+			issuer: SITE_NAME,
+			skipVerificationOnEnable: true,
+			otpOptions: {
+				sendOTP: async ({ user, otp }) => {
+					await sendVerificationCodeEmail(user.email, otp, 'sign-in', 5);
+				}
+			}
+		}),
+		passkey({
+			rpID: PASSKEY_RP_ID,
+			rpName: SITE_NAME,
+			origin: SITE_ORIGIN
 		})
 	],
+	emailVerification: {
+		expiresIn: 300
+	},
 	emailAndPassword: {
 		enabled: true,
-		minPasswordLength: 8
+		minPasswordLength: 8,
+		requireEmailVerification: privateEnv.EMAIL_VERIFICATION_REQUIRED === 'true',
+		sendResetPassword: async ({ user, url }) => {
+			await sendPasswordResetEmail(user.email, url);
+		}
+	},
+	hooks: {
+		after: createAuthMiddleware(async (ctx) => {
+			const path = ctx.path ?? '';
+			const result = ctx.context.returned as any;
+			if (result?.error) return;
+			const body = (ctx.body ?? {}) as Record<string, any>;
+			const sessionEmail = (ctx.context as any)?.session?.user?.email as string | undefined;
+
+			const notify = (email: string | undefined, event: Parameters<typeof sendSecurityAlertEmail>[1], details: { label: string; value: string }[] = []) => {
+				if (!email) return;
+				void sendSecurityAlertEmail(email, event, details).catch((error) =>
+					console.error('[security-email] Failed to send alert:', error)
+				);
+			};
+
+			if (path === '/change-email' || path === '/email-otp/change-email') {
+				notify(sessionEmail, 'EMAIL_CHANGED', [
+					{ label: 'Requested email', value: String(body.newEmail ?? '') }
+				]);
+			} else if (path === '/email-otp/reset-password') {
+				notify(String(body.email ?? ''), 'PASSWORD_CHANGED', [
+					{ label: 'Method', value: 'Email verification code' }
+				]);
+			} else if (path === '/passkey/verify-registration') {
+				notify(sessionEmail, 'PASSKEY_ADDED', [
+					{ label: 'Passkey', value: String(body.name ?? 'Unnamed passkey') }
+				]);
+			} else if (path === '/passkey/delete-passkey') {
+				notify(sessionEmail, 'PASSKEY_REMOVED', [
+					{ label: 'Passkey ID', value: String(body.id ?? '') }
+				]);
+			} else if (path === '/two-factor/enable') {
+				notify(sessionEmail, 'TWO_FACTOR_ENABLED', [
+					{ label: 'Method', value: 'Authenticator app' }
+				]);
+			} else if (path === '/two-factor/disable') {
+				notify(sessionEmail, 'TWO_FACTOR_DISABLED', [
+					{ label: 'Method', value: 'Authenticator app' }
+				]);
+			}
+		})
 	},
 	databaseHooks: {
 		user: {
@@ -297,6 +403,11 @@ export const auth = betterAuth({
 				before: async (userData, context) => {
 					if (!('username' in userData) || !userData.username) {
 						userData = { ...userData, username: generateUsername() };
+					}
+					// Google-owned email addresses are already verified by Google.
+					// Never ask these users for an extra Catplay verification code.
+					if ((context as any)?.path?.startsWith('/callback/')) {
+						userData = { ...userData, emailVerified: true };
 					}
 					const email = (userData as any).email as string | undefined;
 					if (email && isDisposableEmail(email)) {
@@ -349,6 +460,30 @@ export const auth = betterAuth({
 					return { data: userData };
 				}
 			}
+		},
+		session: {
+			create: {
+				before: async (sessionData) => {
+					const userId = Number((sessionData as any).userId);
+					if (!Number.isFinite(userId)) return { data: sessionData };
+
+					const [record] = await db
+						.select({ isBanned: schema.user.isBanned, banExpires: schema.user.banExpires })
+						.from(schema.user)
+						.where(eq(schema.user.id, userId))
+						.limit(1);
+
+					if (record?.isBanned) {
+						if (isBanActive(record)) {
+							throw new Error(
+								`This account is suspended. Contact ${CONTACT_EMAIL} for support.`
+							);
+						}
+						await clearExpiredBan(userId);
+					}
+					return { data: sessionData };
+				}
+			}
 		}
 	},
 	database: drizzleAdapter(db, {
@@ -386,6 +521,7 @@ export const auth = betterAuth({
 				return {
 					name: profile.name,
 					email: profile.email,
+					emailVerified: true,
 					image: s3ImageKey,
 					username: newUsername
 				};
@@ -395,7 +531,10 @@ export const auth = betterAuth({
 	user: {
 		changeEmail: {
 			enabled: true,
-			updateEmailWithoutVerification: true
+			updateEmailWithoutVerification: true,
+			sendChangeEmailConfirmation: async ({ newEmail, url }) => {
+				await sendEmailChangeConfirmationEmail(newEmail, url);
+			}
 		},
 		additionalFields: {
 			username: { type: 'string', required: false, input: true, inputOptions: { minLength: 3, maxLength: 30 } },
@@ -406,7 +545,9 @@ export const auth = betterAuth({
 			volumeMaster: { type: 'string', required: false, input: false },
 			volumeMuted: { type: 'boolean', required: false, input: false },
 			signupIp: { type: 'string', required: false, input: false },
-			altWarning: { type: 'string', required: false, input: false }
+			altWarning: { type: 'string', required: false, input: false },
+			signupDeviceId: { type: 'string', required: false, input: false },
+			banExpires: { type: 'date', required: false, input: false }
 		}
 	},
 	session: {

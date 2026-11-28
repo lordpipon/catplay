@@ -13,9 +13,11 @@
 		Target01Icon,
 		DiceIcon,
 		ChartColumnIcon,
-		Award01Icon
+		Award01Icon,
+		Mail01Icon
 	} from '@hugeicons/core-free-icons';
 	import UserManualModal from '$lib/components/self/UserManualModal.svelte';
+	import { CONTACT_EMAIL, DISCORD_INVITE } from '$lib/site';
 
 	let showUserManual = $state(false);
 	function handleManual() {
@@ -164,7 +166,7 @@
 						<Button
 							variant="outline"
 							size="sm"
-							href="https://discord.gg/NKzq7ppNQK"
+							href={DISCORD_INVITE}
 							target="_blank"
 							rel="noopener"
 						>
@@ -189,6 +191,28 @@
 						>
 					</p>
 				</div>
+			</CardContent>
+		</Card>
+
+		<Card>
+			<CardHeader>
+				<CardTitle class="flex items-center gap-2">
+					<HugeiconsIcon icon={Mail01Icon} class="text-primary h-5 w-5" />
+					Contact
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<p class="text-muted-foreground text-sm">
+					Questions, bug reports, ban appeals, or account help? Email us and we will get back to
+					you.
+				</p>
+				<a
+					href={`mailto:${CONTACT_EMAIL}`}
+					class="border-input bg-background hover:bg-accent mt-4 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
+				>
+					<HugeiconsIcon icon={Mail01Icon} class="h-4 w-4" />
+					{CONTACT_EMAIL}
+				</a>
 			</CardContent>
 		</Card>
 	</div>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	interface Notification {
-		type: 'HOPIUM' | 'TRANSFER' | 'RUG_PULL' | 'SYSTEM' | 'BATTLEPASS';
+		type: 'HOPIUM' | 'TRANSFER' | 'RUG_PULL' | 'SYSTEM' | 'BATTLEPASS' | 'FRIEND' | 'DM';
 		link?: string;
 		isRead: boolean;
 	}

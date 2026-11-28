@@ -335,9 +335,12 @@
 		saveVolumeToServer({ master: masterVolume / 100, muted: isMuted });
 	}
 
-	let secStatus = $state<{ hasPassword: boolean; googleLinked: boolean; canUnlinkGoogle: boolean } | null>(
-		null
-	);
+	let secStatus = $state<{
+		hasPassword: boolean;
+		googleLinked: boolean;
+		twoFactorEnabled: boolean;
+		canUnlinkGoogle: boolean;
+	} | null>(null);
 	const DISPOSABLE_DOMAINS = new Set([
 		'guerrillamail.com','tempmail.com','temp-mail.org','mailinator.com',
 		'maildrop.cc','yopmail.com','trashmail.com','trashmail.net',
@@ -374,12 +377,136 @@
 	let setPass2 = $state('');
 	let secBusy = $state(false);
 
+	type PasskeyRow = {
+		id: string;
+		name?: string | null;
+		createdAt?: string | Date | null;
+		deviceType?: string | null;
+	};
+	let passkeys = $state<PasskeyRow[]>([]);
+	let passkeyName = $state('');
+	let totpUri = $state('');
+	let backupCodes = $state<string[]>([]);
+	let twoFactorCode = $state('');
+	let twoFactorPassword = $state('');
+	let twoFactorDisablePassword = $state('');
+	let twoFactorBusy = $state(false);
+
 	async function loadSecurity() {
 		try {
 			const res = await fetch('/api/user/security');
 			if (res.ok) secStatus = await res.json();
 		} catch {
 			// ignore
+		}
+		await loadPasskeys();
+	}
+
+	async function loadPasskeys() {
+		try {
+			const res = await client.passkey.listUserPasskeys();
+			if (!res.error && Array.isArray(res.data)) passkeys = res.data as PasskeyRow[];
+		} catch {
+			// ignore
+		}
+	}
+
+	async function addPasskey() {
+		if (twoFactorBusy) return;
+		twoFactorBusy = true;
+		try {
+			const res = await client.passkey.addPasskey({
+				name: passkeyName.trim() || 'Catplay passkey',
+				authenticatorAttachment: 'platform'
+			});
+			if (res.error) {
+				toast.error(res.error.message || 'Could not add passkey');
+				return;
+			}
+			toast.success('Passkey added');
+			passkeyName = '';
+			await loadPasskeys();
+		} finally {
+			twoFactorBusy = false;
+		}
+	}
+
+	async function removePasskey(id: string) {
+		if (!confirm('Remove this passkey? You will lose access if it is your only sign-in method.')) return;
+		twoFactorBusy = true;
+		try {
+			const res = await client.passkey.deletePasskey({ id });
+			if (res.error) {
+				toast.error(res.error.message || 'Could not remove passkey');
+				return;
+			}
+			toast.success('Passkey removed');
+			await loadPasskeys();
+		} finally {
+			twoFactorBusy = false;
+		}
+	}
+
+	async function beginTwoFactor() {
+		if (!twoFactorPassword) {
+			toast.error('Enter your password to enable 2FA');
+			return;
+		}
+		twoFactorBusy = true;
+		try {
+			const res = await client.twoFactor.enable({ password: twoFactorPassword });
+			if (res.error) {
+				toast.error(res.error.message || 'Could not start 2FA setup');
+				return;
+			}
+			totpUri = String((res.data as any)?.totpURI ?? '');
+			backupCodes = Array.isArray((res.data as any)?.backupCodes) ? (res.data as any).backupCodes : [];
+			toast.success('Scan the authenticator link below, then enter a code to confirm.');
+		} finally {
+			twoFactorBusy = false;
+		}
+	}
+
+	async function confirmTwoFactor() {
+		if (twoFactorCode.trim().length < 6) {
+			toast.error('Enter the 6-digit code from your authenticator');
+			return;
+		}
+		twoFactorBusy = true;
+		try {
+			const res = await client.twoFactor.verifyTotp({ code: twoFactorCode.trim() });
+			if (res.error) {
+				toast.error(res.error.message || 'Invalid code');
+				return;
+			}
+			totpUri = '';
+			backupCodes = [];
+			twoFactorCode = '';
+			twoFactorPassword = '';
+			toast.success('Two-factor authentication enabled');
+			await loadSecurity();
+		} finally {
+			twoFactorBusy = false;
+		}
+	}
+
+	async function disableTwoFactor() {
+		if (!twoFactorDisablePassword) {
+			toast.error('Enter your password to disable 2FA');
+			return;
+		}
+		twoFactorBusy = true;
+		try {
+			const res = await client.twoFactor.disable({ password: twoFactorDisablePassword });
+			if (res.error) {
+				toast.error(res.error.message || 'Could not disable 2FA');
+				return;
+			}
+			twoFactorDisablePassword = '';
+			toast.success('Two-factor authentication disabled');
+			await loadSecurity();
+		} finally {
+			twoFactorBusy = false;
 		}
 	}
 
@@ -426,7 +553,7 @@
 		}
 		secBusy = true;
 		try {
-			const res = await fetch('/api/auth/change-password', {
+			const res = await fetch('/api/user/change-password', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ currentPassword, newPassword })
@@ -468,7 +595,7 @@
 				toast.error(d.message || d.error || 'Failed to change email');
 				return;
 			}
-			toast.success(`Email updated to ${newEmail}`);
+			toast.success(`Check ${newEmail} to confirm your new email address.`);
 			newEmail = '';
 			await loadSecurity();
 			await invalidateAll();
@@ -1009,6 +1136,125 @@
 							<Input type="email" placeholder="New email address" bind:value={newEmail} />
 							<Button size="sm" onclick={changeEmail} disabled={secBusy || !newEmail}>Update Email</Button>
 						</div>
+					</div>
+				</Card.Content>
+			</Card.Root>
+
+			<Card.Root>
+				<Card.Header>
+					<Card.Title>Passkeys &amp; Two-Factor</Card.Title>
+					<Card.Description>Add passwordless sign-in and protect your account with an authenticator</Card.Description>
+				</Card.Header>
+				<Card.Content class="space-y-4">
+					<div class="rounded-lg border p-4 space-y-3">
+						<h4 class="text-sm font-medium">Passkeys</h4>
+						<p class="text-muted-foreground text-xs">
+							Passkeys let you sign in with your device's fingerprint, face, or PIN. No code needed.
+						</p>
+						{#if passkeys.length}
+							<div class="space-y-2">
+								{#each passkeys as passkey (passkey.id)}
+									<div class="flex items-center justify-between rounded-md border px-3 py-2">
+										<div class="min-w-0">
+											<p class="truncate text-sm font-medium">{passkey.name || 'Unnamed passkey'}</p>
+											<p class="text-muted-foreground text-xs">
+												{passkey.deviceType || 'Device'}
+												{#if passkey.createdAt} · {new Date(passkey.createdAt).toLocaleDateString()}{/if}
+											</p>
+										</div>
+										<Button
+											variant="ghost"
+											size="sm"
+											onclick={() => removePasskey(passkey.id)}
+											disabled={twoFactorBusy}
+										>
+											Remove
+										</Button>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-muted-foreground text-xs">No passkeys added yet.</p>
+						{/if}
+						<div class="flex gap-2">
+							<Input
+								placeholder="Passkey name (optional)"
+								bind:value={passkeyName}
+								onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && addPasskey()}
+							/>
+							<Button size="sm" onclick={addPasskey} disabled={twoFactorBusy}>Add Passkey</Button>
+						</div>
+					</div>
+
+					<div class="rounded-lg border p-4 space-y-3">
+						<h4 class="text-sm font-medium">Authenticator App (TOTP)</h4>
+						{#if secStatus?.twoFactorEnabled}
+							<p class="text-muted-foreground text-xs">Two-factor authentication is currently enabled.</p>
+							<div class="flex gap-2">
+								<Input
+									type="password"
+									placeholder="Current password"
+									bind:value={twoFactorDisablePassword}
+								/>
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={disableTwoFactor}
+									disabled={twoFactorBusy || !twoFactorDisablePassword}
+								>
+									Disable 2FA
+								</Button>
+							</div>
+						{:else}
+							<p class="text-muted-foreground text-xs">
+								Requires a password. Set one above if you only use Google sign-in.
+							</p>
+							<div class="flex gap-2">
+								<Input
+									type="password"
+									placeholder="Current password"
+									bind:value={twoFactorPassword}
+								/>
+								<Button
+									size="sm"
+									onclick={beginTwoFactor}
+									disabled={twoFactorBusy || !secStatus?.hasPassword || !twoFactorPassword}
+								>
+									Set Up 2FA
+								</Button>
+							</div>
+							{#if totpUri}
+								<div class="space-y-2 rounded-md bg-muted/40 p-3">
+									<p class="text-xs font-medium">Open this link in your authenticator app:</p>
+									<Input value={totpUri} readonly />
+									<a href={totpUri} class="text-primary text-xs underline" target="_blank" rel="noreferrer">
+										Open authenticator setup link
+									</a>
+									<Input
+										placeholder="6-digit code from authenticator"
+										bind:value={twoFactorCode}
+										onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && confirmTwoFactor()}
+									/>
+									<Button
+										size="sm"
+										onclick={confirmTwoFactor}
+										disabled={twoFactorBusy || twoFactorCode.trim().length < 6}
+									>
+										Confirm &amp; Enable
+									</Button>
+									{#if backupCodes.length}
+										<div class="space-y-1">
+											<p class="text-xs font-medium">Save your backup codes:</p>
+											<div class="flex flex-wrap gap-1">
+												{#each backupCodes as code}
+													<code class="bg-background rounded border px-2 py-1 text-xs">{code}</code>
+												{/each}
+											</div>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/if}
 					</div>
 				</Card.Content>
 			</Card.Root>

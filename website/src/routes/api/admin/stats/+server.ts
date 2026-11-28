@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		.where(eq(user.id, Number(session.user.id)))
 		.limit(1);
 
-	if (!hasFlag(currentUser.flags, 'IS_ADMIN', 'IS_HEAD_ADMIN'))
+	if (!hasFlag(currentUser?.flags, 'IS_ADMIN', 'IS_HEAD_ADMIN'))
 		throw error(403, 'Admin access required');
 
 	const now = new Date();
@@ -30,7 +30,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		[comments],
 		[newUsers],
 		[gemsRow],
-		[vipRows],
+		vipRows,
 		[marketRow],
 		[volumeRow],
 		[txVolumeRow]
@@ -42,7 +42,10 @@ export const GET: RequestHandler = async ({ request }) => {
 		db.select({ count: count() }).from(comment).where(eq(comment.isDeleted, false)),
 		db.select({ count: count() }).from(user).where(gt(user.createdAt, dayAgo)),
 		db.select({ sum: sql<string>`coalesce(sum(gems), 0)` }).from(user),
-		db.select({ count: count() }).from(globalSetting).where(like(globalSetting.key, 'vip_expires_%')),
+		db
+			.select({ key: globalSetting.key, value: globalSetting.value })
+			.from(globalSetting)
+			.where(like(globalSetting.key, 'vip_expires_%')),
 		db.select({ sum: sql<string>`coalesce(sum(market_cap), 0)` }).from(coin).where(eq(coin.isListed, true)),
 		db.select({ sum: sql<string>`coalesce(sum(volume_24h), 0)` }).from(coin).where(eq(coin.isListed, true)),
 		db.select({ sum: sql<string>`coalesce(sum(total_base_currency_amount), 0)` }).from(transaction)
@@ -50,6 +53,11 @@ export const GET: RequestHandler = async ({ request }) => {
 
 	const toNumber = (v: string | number | null | undefined) =>
 		typeof v === 'number' ? v : Number(v ?? 0);
+
+	// Only count VIPs whose expiry is permanent or still in the future.
+	const activeVipCount = vipRows.filter(
+		(row) => row.value === 'permanent' || new Date(row.value ?? '').getTime() > now.getTime()
+	).length;
 
 	return json({
 		totalUsers: users.count,
@@ -59,7 +67,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		totalComments: comments.count,
 		newUsers24h: newUsers.count,
 		totalGems: toNumber(gemsRow.sum),
-		activeVipCount: vipRows.count,
+		activeVipCount,
 		totalMarketCap: toNumber(marketRow.sum),
 		totalVolume24h: toNumber(volumeRow.sum),
 		totalTradingVolume: toNumber(txVolumeRow.sum)

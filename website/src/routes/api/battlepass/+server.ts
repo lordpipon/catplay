@@ -140,17 +140,23 @@ export const GET: RequestHandler = async ({ request }) => {
 	// Levels never regress: absolute tasks (net worth, holdings, streak) fluctuate
 	// over time and already-claimed rewards must stay valid — only write increases
 	if (computedLevel > progress.level) {
-		await createNotification(
-			session.user.id.toString(),
-			'BATTLEPASS',
-			`Battlepass Level ${computedLevel}!`,
-			`You reached Level ${computedLevel}. New rewards are ready to claim!`,
-			'/battlepass'
-		);
+		// Persist progress first. A notification failure must never roll back
+		// the level the user just earned.
 		[progress] = await db.update(battlepassProgress)
 			.set({ level: computedLevel, xp: computedLevel * 100 })
 			.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, season.id)))
 			.returning();
+		try {
+			await createNotification(
+				session.user.id.toString(),
+				'BATTLEPASS',
+				`Battlepass Level ${computedLevel}!`,
+				`You reached Level ${computedLevel}. New rewards are ready to claim!`,
+				'/battlepass'
+			);
+		} catch (e) {
+			console.error('Battlepass level notification failed:', e);
+		}
 	}
 
 	return json({ season, tiers, progress, isVip, counts: delta });
@@ -161,9 +167,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!session?.user) return json({ error: 'Not authenticated' }, { status: 401 });
 	const userId = Number(session.user.id);
 
-	const { action, tierId } = await request.json();
+	const body = await request.json().catch(() => ({}));
+	const action = body.action;
+	const tierId = Number(body.tierId);
 
 	if (action === 'claim') {
+		if (!Number.isInteger(tierId)) return json({ error: 'Invalid claim request' }, { status: 400 });
+
 		const [tier] = await db.select().from(battlepassTier).where(eq(battlepassTier.id, tierId)).limit(1);
 		if (!tier) return json({ error: 'Tier not found' }, { status: 404 });
 
@@ -180,10 +190,30 @@ export const POST: RequestHandler = async ({ request }) => {
 			.where(eq(battlepassSeason.id, tier.seasonId)).limit(1);
 		if (!season?.isActive) return json({ error: 'Season not active' }, { status: 400 });
 
-		const [progress] = await db.select().from(battlepassProgress)
+		let [progress] = await db.select().from(battlepassProgress)
 			.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, tier.seasonId)))
 			.limit(1);
-		if (!progress) return json({ error: 'Visit the battlepass page first' }, { status: 400 });
+
+		// A claim should still work if the user opened the page in an old tab or
+		// their progress row was removed. Create it with the same baselines GET uses.
+		if (!progress) {
+			const raw = await getRawCounts(userId, userData);
+			[progress] = await db.insert(battlepassProgress).values({
+				userId,
+				seasonId: tier.seasonId,
+				level: 0,
+				xp: 0,
+				claimedTiers: '[]',
+				baselineTrades: raw.trades,
+				baselineArcade: raw.arcade_games,
+				baselineStreak: 0
+			}).onConflictDoNothing().returning();
+			if (!progress) {
+				[progress] = await db.select().from(battlepassProgress)
+					.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, tier.seasonId)))
+					.limit(1);
+			}
+		}
 
 		// Verify task completed
 		if (tier.taskType !== 'manual') {
@@ -193,25 +223,33 @@ export const POST: RequestHandler = async ({ request }) => {
 				return json({ error: `Task not complete yet: ${tier.taskDescription}` }, { status: 400 });
 		}
 
-		if (progress.level < tier.level)
+		// Manual/final tiers unlock once every prior level is done.
+		const requiredLevel = tier.taskType === 'manual' ? Math.max(0, tier.level - 1) : tier.level;
+		if (progress.level < requiredLevel)
 			return json({ error: `Complete previous levels first (you are level ${progress.level})` }, { status: 400 });
 
-		const claimed: number[] = JSON.parse(progress.claimedTiers || '[]');
+		let claimed: number[] = [];
+		try {
+			const parsed = JSON.parse(progress.claimedTiers || '[]');
+			if (Array.isArray(parsed)) claimed = parsed.map(Number).filter(Number.isInteger);
+		} catch {
+			claimed = [];
+		}
 		if (claimed.includes(tierId)) return json({ error: 'Already claimed' }, { status: 400 });
 		claimed.push(tierId);
 
-		const updateData: any = { updatedAt: new Date() };
-		if (tier.rewardType === 'gems') updateData.gems = (userData.gems ?? 0) + Number(tier.rewardAmount);
-		if (tier.rewardType === 'cash') updateData.baseCurrencyBalance = (Number(userData.baseCurrencyBalance) + Number(tier.rewardAmount)).toFixed(8);
+		const rewardAmount = Number(tier.rewardAmount) || 0;
+		const userUpdate: any = { updatedAt: new Date() };
+		if (tier.rewardType === 'gems') userUpdate.gems = sql`${user.gems} + ${rewardAmount}`;
+		if (tier.rewardType === 'cash')
+			userUpdate.baseCurrencyBalance = sql`CAST(${user.baseCurrencyBalance} AS NUMERIC) + ${rewardAmount}`;
 
-		// Premium: also grant cash bonus (gems × 50)
-		if (tier.tier === 'premium' && tier.rewardType === 'gems') {
-			const cashBonus = Number(tier.rewardAmount) * 25;
-			updateData.baseCurrencyBalance = (Number(userData.baseCurrencyBalance) + cashBonus).toFixed(8);
-		}
+		// Premium gem rewards also grant a cash bonus (gems × 25)
+		if (tier.tier === 'premium' && tier.rewardType === 'gems')
+			userUpdate.baseCurrencyBalance = sql`CAST(${user.baseCurrencyBalance} AS NUMERIC) + ${rewardAmount * 25}`;
 
 		await db.transaction(async (tx) => {
-			await tx.update(user).set(updateData).where(eq(user.id, userId));
+			await tx.update(user).set(userUpdate).where(eq(user.id, userId));
 			await tx.update(battlepassProgress)
 				.set({
 					claimedTiers: JSON.stringify(claimed),
@@ -221,13 +259,17 @@ export const POST: RequestHandler = async ({ request }) => {
 				.where(and(eq(battlepassProgress.userId, userId), eq(battlepassProgress.seasonId, tier.seasonId)));
 		});
 
-		await createNotification(
-			session.user.id.toString(),
-			'BATTLEPASS',
-			'Battlepass Reward Claimed!',
-			`Level ${tier.level} ${tier.tier === 'premium' ? 'Premium ' : ''}reward: ${tier.rewardLabel}`,
-			'/battlepass'
-		);
+		try {
+			await createNotification(
+				session.user.id.toString(),
+				'BATTLEPASS',
+				'Battlepass Reward Claimed!',
+				`Level ${tier.level} ${tier.tier === 'premium' ? 'Premium ' : ''}reward: ${tier.rewardLabel}`,
+				'/battlepass'
+			);
+		} catch (e) {
+			console.error('Battlepass reward notification failed:', e);
+		}
 
 		return json({ success: true, reward: { type: tier.rewardType, amount: Number(tier.rewardAmount), label: tier.rewardLabel } });
 	}

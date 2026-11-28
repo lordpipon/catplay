@@ -1,0 +1,3 @@
+ALTER TYPE "notification_type" ADD VALUE IF NOT EXISTS 'BATTLEPASS';
+ALTER TYPE "notification_type" ADD VALUE IF NOT EXISTS 'FRIEND';
+ALTER TYPE "notification_type" ADD VALUE IF NOT EXISTS 'DM';

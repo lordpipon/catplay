@@ -1,8 +1,9 @@
 import { auth } from '$lib/auth';
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { account } from '$lib/server/db/schema';
+import { account, user } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { sendSecurityAlertEmail } from '$lib/server/email';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -44,6 +45,15 @@ export const POST: RequestHandler = async ({ request }) => {
 			password: passwordHash
 		});
 	}
+
+	const [userRecord] = await db
+		.select({ email: user.email })
+		.from(user)
+		.where(eq(user.id, userId))
+		.limit(1);
+	await sendSecurityAlertEmail(userRecord?.email ?? session.user.email, 'PASSWORD_CHANGED', [
+		{ label: 'Method', value: 'Password added to Google account' }
+	]);
 
 	return json({ success: true });
 };

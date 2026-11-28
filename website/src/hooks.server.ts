@@ -13,6 +13,7 @@ import { towerCleanupInactiveGames } from '$lib/server/games/tower';
 import { chickenCleanupInactiveGames } from '$lib/server/games/chicken';
 import { hasFlag, UserFlags } from '$lib/data/flags';
 import { ensureProxyRangesLoaded } from '$lib/server/anti-abuse';
+import { clearExpiredBan, isBanActive } from '$lib/server/ban';
 
 function isHalloween2026() {
 	const now = Date.now();
@@ -169,7 +170,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const cacheKey = `user:${userId}`;
 		const now = Date.now();
 
-		const cached = sessionCache.get(cacheKey);
+		let cached = sessionCache.get(cacheKey);
+		if (cached?.userData?.isBanned && cached.userData.banExpires) {
+			const expiresAt = new Date(cached.userData.banExpires).getTime();
+			if (Number.isFinite(expiresAt) && expiresAt <= now) {
+				sessionCache.delete(cacheKey);
+				cached = undefined;
+			}
+		}
 		if (cached && now - cached.timestamp < cached.ttl) {
 			userData = cached.userData;
 		} else {
@@ -183,6 +191,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 					image: user.image,
 					isBanned: user.isBanned,
 					banReason: user.banReason,
+					banExpires: user.banExpires,
 					baseCurrencyBalance: user.baseCurrencyBalance,
 					bio: user.bio,
 					volumeMaster: user.volumeMaster,
@@ -206,19 +215,31 @@ export const handle: Handle = async ({ event, resolve }) => {
 			}
 
 			if (userRecord?.isBanned) {
-				try {
-					await auth.api.signOut({
-						headers: event.request.headers
-					});
-				} catch (e) {
-					console.error('Failed to sign out banned user:', e);
-				}
+				if (!isBanActive(userRecord)) {
+					await clearExpiredBan(userRecord.id);
+					userRecord.isBanned = false;
+					userRecord.banReason = null;
+					userRecord.banExpires = null;
+				} else {
+					try {
+						await auth.api.signOut({
+							headers: event.request.headers
+						});
+					} catch (e) {
+						console.error('Failed to sign out banned user:', e);
+					}
 
-				if (event.url.pathname !== '/banned') {
-					const banReason = encodeURIComponent(userRecord.banReason || 'Account suspended');
-					throw redirect(302, `/banned?reason=${banReason}`);
+					if (event.url.pathname !== '/banned') {
+						const banReason = encodeURIComponent(userRecord.banReason || 'Account suspended');
+						const until = userRecord.banExpires
+							? `&until=${encodeURIComponent(new Date(userRecord.banExpires).toISOString())}`
+							: '';
+						throw redirect(302, `/banned?reason=${banReason}${until}`);
+					}
 				}
-			} else if (userRecord) {
+			}
+
+			if (userRecord && !userRecord.isBanned) {
 				const [spendResult] = await db
 					.select({ total: sql<number>`COALESCE(SUM(${gemTransactions.usdAmount}), 0)` })
 					.from(gemTransactions)
@@ -236,6 +257,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 					image: userRecord.image || '',
 					isBanned: userRecord.isBanned || false,
 					banReason: userRecord.banReason,
+					banExpires: userRecord.banExpires,
 					avatarUrl: userRecord.image,
 					baseCurrencyBalance: parseFloat(userRecord.baseCurrencyBalance || '0'),
 					bio: userRecord.bio || '',
